@@ -1,0 +1,21 @@
+server:
+  port: ${BACKEND_PORT:8080}
+
+spring:
+  application:
+    name: hedera-agent-platform
+  datasource:
+    url: jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5432}/${DATABASE_NAME:hedera_agents}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+
+hedera:
+  network: ${HEDERA_NETWORK:testnet}
+  operator-id: ${HEDERA_OPERATOR_ID:}
+  operator-private-key: ${HEDERA_OPERATOR_PRIVATE_KEY:}
