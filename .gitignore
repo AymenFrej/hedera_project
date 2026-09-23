@@ -8,6 +8,8 @@ frontend/dist/
 frontend/.vite/
 *.class
 *.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 .idea/
 .vscode/
 *.iml
