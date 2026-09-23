@@ -48,3 +48,20 @@
 .hash-side code{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:#c8cedd;word-break:break-all;line-height:1.5}
 .hash-side .ledger-payload{margin-top:9px;font-size:9px}
 @media (max-width:1100px){.hash-compare{grid-template-columns:1fr}}
+
+/* --- Policies page ------------------------------------------------------ */
+.envelope-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.envelope-card{padding:15px 17px;border:1px solid #1d222e;border-radius:10px;background:#12151d;display:flex;flex-direction:column;gap:4px}
+.envelope-card strong{font-size:24px;letter-spacing:-.5px}
+.envelope-note{font-size:10px;color:#6d7488}
+.decide-form{display:grid;grid-template-columns:150px 140px 1fr auto;gap:13px;align-items:end}
+.decide-form label{display:flex;flex-direction:column;gap:6px;min-width:0}
+.decide-form input,.decide-form select{height:36px;padding:0 11px;border-radius:8px;border:1px solid #262b39;background:#0d1017;color:#e9ecf4;font-family:inherit;font-size:12px}
+.decide-form input:focus,.decide-form select:focus{outline:none;border-color:#5c46d5}
+.verdict-card{margin-top:18px;padding:15px 17px;border-radius:10px;border:1px solid}
+.verdict-card.ok{background:#11251c;border-color:#1f4a35;color:#7ee0ac}
+.verdict-card.warn{background:#2a2214;border-color:#59431d;color:#e8bd6b}
+.verdict-card.danger{background:#2a1618;border-color:#5c2429;color:#f28b93}
+.verdict-card p{margin:9px 0 0;font-size:12px;color:#c8cedd;line-height:1.55}
+.verdict-card .audit-meta{margin-top:6px}
+.rule-id{margin-left:auto;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;padding:3px 8px;border-radius:5px;background:#0d101788;color:#c8cedd}

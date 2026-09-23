@@ -5,7 +5,9 @@ import com.hedera.agentplatform.policies.PolicyState;
 import com.hedera.agentplatform.policies.dto.*;
 import com.hedera.agentplatform.policies.service.ApprovalService;
 import com.hedera.agentplatform.policies.service.PolicyService;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -32,6 +34,15 @@ public class PolicyController {
   @GetMapping
   public List<PolicyResponse> findAll() {
     return service.findAll();
+  }
+
+  @GetMapping("/state")
+  public StateResponse state() {
+    Map<String, Long> envelopes = new LinkedHashMap<>();
+    for (PolicyEngine.Envelope envelope : PolicyEngine.Envelope.values()) {
+      envelopes.put(envelope.name(), DEMO_STATE.balances().get(envelope));
+    }
+    return new StateResponse(envelopes, DEMO_STATE.knownCounterparties());
   }
 
   @PostMapping("/decide")
