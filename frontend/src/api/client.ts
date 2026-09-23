@@ -22,6 +22,11 @@ export async function changePassword(currentPassword: string, newPassword: strin
 export async function logout() { try { await request<void>('/auth/logout', { method: 'POST' }) } finally { clearAuthToken() } }
 export async function deleteAccount() { try { await request<void>('/auth/me', { method: 'DELETE' }) } finally { clearAuthToken() } }
 export async function getCurrentAccount() { return request<{ id: string; hederaAccountId: string; balance: string; status: string }>('/accounts/me') }
+export type ManagedUser = { id: string; email: string; displayName: string; role: string; accountId: string; hederaAccountId: string }
+export async function listManagedUsers() { return request<ManagedUser[]>('/admin/users') }
+export async function createManagedUser(body: { email: string; password: string; displayName: string; role: string }) { return request<ManagedUser>('/admin/users', { method: 'POST', body: JSON.stringify(body) }) }
+export async function updateManagedUserRole(id: string, role: string) { return request<ManagedUser>(`/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }) }
+export async function deleteManagedUser(id: string) { return request<void>(`/admin/users/${id}`, { method: 'DELETE' }) }
 
 export async function getHealth(): Promise<{ status: string }> {
   return request('/health')
