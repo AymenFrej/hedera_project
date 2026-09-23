@@ -6,8 +6,7 @@ import com.hedera.agentplatform.payments.entity.PaymentEntity;
  * Decides whether a payment may run, must wait for a human, or is refused.
  *
  * <p>Payments owns the question, the Policies module owns the answer. This interface is the seam
- * between the two: once the policy engine is merged, an adapter bean implementing it replaces
- * {@link NoPolicyConfigured} automatically.
+ * between the two; {@link EnginePaymentPolicy} connects it to the policy engine.
  */
 public interface PaymentPolicy {
 

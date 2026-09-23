@@ -267,7 +267,7 @@ export default function PaymentsPage() {
             >
               {ENVELOPES.map((env) => (
                 <option key={env} value={env}>
-                  {env || 'None'}
+                  {env || 'None (the policy engine will refuse it)'}
                 </option>
               ))}
             </select>

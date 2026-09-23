@@ -1,13 +1,20 @@
 package com.hedera.agentplatform.payments.agent;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 import com.hedera.agentplatform.shared.model.AgentIntent;
 import com.hedera.agentplatform.shared.model.AgentPlan;
 import com.hedera.agentplatform.shared.model.AgentRequest;
 import com.hedera.agentplatform.shared.model.AgentResult;
 import com.hedera.agentplatform.shared.model.AgentStatus;
+import com.hedera.agentplatform.payments.policy.PaymentPolicy;
+import com.hedera.agentplatform.payments.policy.PaymentPolicy.PaymentPolicyDecision;
+import com.hedera.agentplatform.payments.policy.PaymentPolicy.Verdict;
 import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,6 +25,14 @@ import org.springframework.transaction.annotation.Transactional;
 class PaymentAgentTest {
 
   @Autowired private PaymentAgent agent;
+
+  /** The agent is tested here, not the policy: it allows everything. */
+  @MockitoBean private PaymentPolicy policy;
+
+  @BeforeEach
+  void allowAll() {
+    when(policy.evaluate(any())).thenReturn(new PaymentPolicyDecision(Verdict.ALLOW, "test", "test"));
+  }
 
   private static AgentRequest request(Map<String, Object> context) {
     return new AgentRequest("req_1", AgentIntent.SEND_PAYMENT, "send 5 hbar to 0.0.4242", context);

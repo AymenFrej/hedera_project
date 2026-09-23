@@ -8,6 +8,7 @@ import com.hedera.agentplatform.payments.dto.PaymentPreview;
 import com.hedera.agentplatform.payments.dto.PaymentReceipt;
 import com.hedera.agentplatform.payments.dto.PaymentResponse;
 import com.hedera.agentplatform.payments.dto.PaymentVerification;
+import com.hedera.agentplatform.payments.policy.EnginePaymentPolicy;
 import com.hedera.agentplatform.payments.service.PaymentPreviewService;
 import com.hedera.agentplatform.payments.service.PaymentReceiptService;
 import com.hedera.agentplatform.payments.service.PaymentService;
@@ -25,6 +26,7 @@ public class PaymentController {
   private final PaymentService service;
   private final PaymentPreviewService previews;
   private final PaymentReceiptService receipts;
+  private final EnginePaymentPolicy enginePolicy;
   private final String demoTokenId;
   private final String demoRecipientId;
 
@@ -32,11 +34,13 @@ public class PaymentController {
       PaymentService service,
       PaymentPreviewService previews,
       PaymentReceiptService receipts,
+      EnginePaymentPolicy enginePolicy,
       @Value("${payments.demo-token-id:}") String demoTokenId,
       @Value("${payments.demo-recipient-id:}") String demoRecipientId) {
     this.service = service;
     this.previews = previews;
     this.receipts = receipts;
+    this.enginePolicy = enginePolicy;
     this.demoTokenId = demoTokenId.isBlank() ? null : demoTokenId.trim();
     this.demoRecipientId = demoRecipientId.isBlank() ? null : demoRecipientId.trim();
   }
@@ -98,6 +102,22 @@ public class PaymentController {
   @GetMapping("/{id}/audit/{eventId}/verification")
   public VerificationResult verifyAudit(@PathVariable String id, @PathVariable String eventId) {
     return receipts.verifyAuditEvent(id, eventId);
+  }
+
+  /**
+   * The state the policy engine decides on for one asset: the runway, what is left in each
+   * envelope after committed payments, and the accounts already paid (a first payment to anyone
+   * else is held). Read-only.
+   */
+  @GetMapping("/policy-state")
+  public Map<String, Object> policyState(@RequestParam(defaultValue = "HBAR") String asset) {
+    var state = enginePolicy.state(asset);
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("asset", asset);
+    body.put("runway", enginePolicy.runways().get(asset));
+    body.put("envelopes", state.balances());
+    body.put("knownCounterparties", state.knownCounterparties());
+    return body;
   }
 
   /** Balances of the account payments leave from, from the Mirror Node. Facts only. */

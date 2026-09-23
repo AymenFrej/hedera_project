@@ -21,7 +21,8 @@ public record CreatePaymentRequest(
         String amount,
     @Pattern(regexp = ACCOUNT_ID, message = "must be a Hedera token id like 0.0.12345")
         String tokenId,
-    String envelope,
+    @Pattern(regexp = "(?i)RENT|ESSENTIALS|EMERGENCY", message = "must be RENT, ESSENTIALS or EMERGENCY")
+        String envelope,
     @Size(max = 100) String memo) {
 
   public static final String ACCOUNT_ID = "\\d+\\.\\d+\\.\\d+";

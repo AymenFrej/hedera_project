@@ -66,6 +66,7 @@ request → policy (ALLOW / HOLD / DENY) → [human approval if HOLD] → Hedera
 | `GET` | `/api/v1/payments/{id}/result` | the result screen: outcome, Mirror Node check, timeline from the payment's audit events, each event verified on HCS |
 | `GET` | `/api/v1/payments/{id}/audit` | the audit events this payment wrote |
 | `GET` | `/api/v1/payments/{id}/audit/{eventId}/verification` | read one of them back from HCS (through the audit module) |
+| `GET` | `/api/v1/payments/policy-state?asset=HBAR` | runway, envelope balances left and accounts already paid, as the policy engine sees them |
 | `GET` | `/api/v1/payments/balance` | balances of the paying account (HBAR + associated tokens), from the Mirror Node |
 | `GET` | `/api/v1/payments/status` | `{ "ledgerActive": true, "demoTokenId": "0.0.…", "demoRecipientId": "0.0.…" }` |
 
@@ -240,20 +241,21 @@ Metadata carries `paymentId`, `amount`, `currency`, `destination`, and when know
 
 Both follow the `ActorResolver` pattern: declare a bean and it replaces the default.
 
-**Policies — `PaymentPolicy`.** Until one exists, `NoPolicyConfigured` allows everything and says so
-with rule id `policy.none`. An adapter to the policy engine is a few lines:
+**Policies: `PaymentPolicy` → `EnginePaymentPolicy`.** Payments asks the Policies module's pure
+`PolicyEngine.decide()`; every verdict, rule id and reason is the engine's. Payments supplies the
+`PolicyState`, because it owns the payment history it comes from:
 
-```java
-@Component
-class EnginePaymentPolicy implements PaymentPolicy {
-  public PaymentPolicyDecision evaluate(PaymentEntity p) {
-    PolicyDecision d = PolicyEngine.decide(
-        new PolicyRequest(Envelope.valueOf(p.envelope), p.amountUnits, p.destination),
-        /* balances + known counterparties */ state());
-    return new PaymentPolicyDecision(Verdict.valueOf(d.verdict().name()), d.ruleId(), d.reason());
-  }
-}
-```
+- **Envelope balances.** `PAYMENT_RUNWAYS` sets a runway per asset in smallest units
+  (`HBAR=5000000000,0.0.10687138=1000`). `PolicyEngine.allocate()` splits it (rent 50 %,
+  essentials 30 %, emergency the rest); each envelope then shrinks by the payments committed from
+  it (`SUBMITTED`, `CONFIRMED`, `SIMULATED`; held and rejected payments do not count). An asset
+  without a runway has no funded envelope, so the engine denies it (`envelope.unfunded`).
+- **Known counterparties.** Accounts already paid (`CONFIRMED`, `SIMULATED`). A first payment to
+  anyone else is held (`counterparty.unknown`).
+
+`GET /payments/policy-state?asset=0.0.10687138` shows both. Payments calls the pure engine, not
+`PolicyDecisionService`: the preview must record nothing, and Payments already audits the decision
+once per payment as `PAYMENT_POLICY`, with the payment id and the engine's `ruleId`.
 
 **Accounts — `PaymentSigner`.** Until one exists, `OperatorPaymentSigner` sends from the platform
 operator. A custodial signer returns the signed-in user's account from `payer(...)` and, in

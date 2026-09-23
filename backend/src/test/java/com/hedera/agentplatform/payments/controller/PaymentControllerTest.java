@@ -28,15 +28,27 @@ class PaymentControllerTest {
   }
 
   @Test
-  void creates_a_payment_with_the_default_policy() throws Exception {
+  void the_policy_engine_blocks_a_payment_without_an_envelope() throws Exception {
     mockMvc
         .perform(
             post("/api/v1/payments")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"destination\":\"0.0.4242\",\"amount\":\"10\"}"))
         .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.status").value("SIMULATED"))
-        .andExpect(jsonPath("$.policyRuleId").value("policy.none"));
+        .andExpect(jsonPath("$.status").value("REJECTED"))
+        .andExpect(jsonPath("$.policyVerdict").value("DENY"))
+        .andExpect(jsonPath("$.policyRuleId").value("envelope.unknown"))
+        .andExpect(jsonPath("$.transactionId").doesNotExist());
+  }
+
+  @Test
+  void refuses_an_envelope_that_does_not_exist() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/payments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"destination\":\"0.0.4242\",\"amount\":\"10\",\"envelope\":\"holidays\"}"))
+        .andExpect(status().isBadRequest());
   }
 
   @Test

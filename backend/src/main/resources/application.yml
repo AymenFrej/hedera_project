@@ -30,3 +30,6 @@ payments:
   # Optional demo fixtures, created once with: ./mvnw test -Dtest=PaymentDemoSetup
   demo-token-id: ${PAYMENT_DEMO_TOKEN_ID:}
   demo-recipient-id: ${PAYMENT_DEMO_RECIPIENT_ID:}
+  # Budget the policy engine splits into rent / essentials / emergency envelopes, per asset, in
+  # smallest units: HBAR=<tinybars> or <tokenId>=<units>. An asset without a runway is unfunded.
+  runways: ${PAYMENT_RUNWAYS:}
