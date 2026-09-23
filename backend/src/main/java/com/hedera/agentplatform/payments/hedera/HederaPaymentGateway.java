@@ -11,18 +11,38 @@ package com.hedera.agentplatform.payments.hedera;
  */
 public interface HederaPaymentGateway {
 
-  PaymentResult transferHbar(String destination, long tinybars, String memo);
+  /**
+   * Reserves the id the next transfer will use, so it can be stored before anything is sent. After
+   * a crash mid-transfer, that id is what lets the Mirror Node tell us whether the transfer
+   * happened. Null for the mock, which sends nothing.
+   */
+  String newTransactionId();
 
-  PaymentResult transferToken(String tokenId, String destination, long units, String memo);
+  PaymentResult transferHbar(String transactionId, String destination, long tinybars, String memo);
+
+  PaymentResult transferToken(
+      String transactionId, String tokenId, String destination, long units, String memo);
 
   /** True when transfers really reach Hedera. */
   boolean isLive();
 
   /**
-   * @param success true when the network accepted the transfer (receipt status SUCCESS)
-   * @param status receipt status as reported by Hedera, e.g. SUCCESS or INSUFFICIENT_PAYER_BALANCE
+   * How a transfer ended, as far as the caller can know.
+   *
+   * <p>{@code UNKNOWN} matters: a timeout does not mean the transfer failed, it may well have
+   * reached consensus. Only the Mirror Node can settle it afterwards.
+   */
+  enum Outcome {
+    SUCCESS,
+    FAILED,
+    UNKNOWN
+  }
+
+  /**
+   * @param status receipt status as reported by Hedera, e.g. SUCCESS or INSUFFICIENT_PAYER_BALANCE,
+   *     or the error when no receipt came back
    * @param sourceAccount account the funds left from; null for the mock
    */
   record PaymentResult(
-      boolean success, String transactionId, String status, String sourceAccount, boolean mock) {}
+      Outcome outcome, String transactionId, String status, String sourceAccount, boolean mock) {}
 }

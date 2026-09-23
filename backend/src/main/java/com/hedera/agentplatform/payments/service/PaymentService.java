@@ -3,10 +3,14 @@ package com.hedera.agentplatform.payments.service;
 import com.hedera.agentplatform.audit.service.AuditService;
 import com.hedera.agentplatform.payments.dto.CreatePaymentRequest;
 import com.hedera.agentplatform.payments.dto.PaymentResponse;
+import com.hedera.agentplatform.payments.dto.PaymentVerification;
 import com.hedera.agentplatform.payments.entity.PaymentEntity;
 import com.hedera.agentplatform.payments.entity.PaymentStatus;
 import com.hedera.agentplatform.payments.hedera.HederaPaymentGateway;
 import com.hedera.agentplatform.payments.hedera.HederaPaymentGateway.PaymentResult;
+import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient;
+import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.MirrorLookup;
+import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.MirrorTransaction;
 import com.hedera.agentplatform.payments.policy.PaymentPolicy;
 import com.hedera.agentplatform.payments.policy.PaymentPolicy.PaymentPolicyDecision;
 import com.hedera.agentplatform.payments.repository.PaymentRepository;
@@ -14,7 +18,9 @@ import com.hedera.agentplatform.shared.config.HederaProperties;
 import com.hedera.agentplatform.shared.model.Actor;
 import com.hedera.agentplatform.shared.security.ActorResolver;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,6 +41,7 @@ public class PaymentService {
 
   public static final String AGENT = "PaymentAgent";
   private static final int HBAR_DECIMALS = 8;
+  static final Duration SETTLE_AFTER = Duration.ofMinutes(5);
 
   private final PaymentRepository repository;
   private final HederaPaymentGateway gateway;
@@ -42,6 +49,7 @@ public class PaymentService {
   private final AuditService auditService;
   private final HederaProperties properties;
   private final ActorResolver actorResolver;
+  private final PaymentMirrorClient mirrorClient;
 
   public PaymentService(
       PaymentRepository repository,
@@ -49,8 +57,10 @@ public class PaymentService {
       PaymentPolicy policy,
       AuditService auditService,
       HederaProperties properties,
-      ActorResolver actorResolver) {
+      ActorResolver actorResolver,
+      PaymentMirrorClient mirrorClient) {
     this.actorResolver = actorResolver;
+    this.mirrorClient = mirrorClient;
     this.repository = repository;
     this.gateway = gateway;
     this.policy = policy;
@@ -139,30 +149,231 @@ public class PaymentService {
   }
 
   private PaymentEntity execute(PaymentEntity payment) {
-    // Committed before the network call. With the optimistic lock this is also what stops two
-    // concurrent approvals from sending the same payment twice: the second save fails.
+    // Committed before the network call, together with the transaction id the transfer will use:
+    // if the backend dies mid-transfer, that id is how the Mirror Node tells us what happened.
+    // With the optimistic lock this is also what stops two concurrent approvals from sending the
+    // same payment twice: the second save fails.
     payment.status = PaymentStatus.SUBMITTED.name();
+    payment.transactionId = gateway.newTransactionId();
     payment = touch(payment);
 
     PaymentResult result =
         payment.tokenId == null
-            ? gateway.transferHbar(payment.destination, payment.amountUnits, payment.memo)
+            ? gateway.transferHbar(
+                payment.transactionId, payment.destination, payment.amountUnits, payment.memo)
             : gateway.transferToken(
-                payment.tokenId, payment.destination, payment.amountUnits, payment.memo);
+                payment.transactionId,
+                payment.tokenId,
+                payment.destination,
+                payment.amountUnits,
+                payment.memo);
 
-    payment.transactionId = result.transactionId();
     payment.sourceAccount = result.sourceAccount();
-    if (!result.success()) {
-      payment.status = PaymentStatus.FAILED.name();
-      payment.failureReason = result.status();
-    } else if (result.mock()) {
-      payment.status = PaymentStatus.SIMULATED.name();
-    } else {
-      payment.status = PaymentStatus.CONFIRMED.name();
+    switch (result.outcome()) {
+      case SUCCESS ->
+          payment.status =
+              result.mock() ? PaymentStatus.SIMULATED.name() : PaymentStatus.CONFIRMED.name();
+      case FAILED -> {
+        payment.status = PaymentStatus.FAILED.name();
+        payment.failureReason = result.status();
+      }
+      case UNKNOWN -> {
+        // Stays SUBMITTED: the transfer may have happened. Verification settles it.
+        payment.failureReason = "no receipt from Hedera yet: " + result.status();
+      }
     }
     payment = touch(payment);
-    audit("TRANSFER", result.success() ? "SUCCESS" : "FAILED", payment);
+    audit("TRANSFER", result.outcome().name(), payment);
     return payment;
+  }
+
+  /**
+   * Compares the payment with what the Mirror Node holds, field by field. A payment left SUBMITTED
+   * long enough ago (e.g. the backend restarted mid-transfer) is settled from the ledger here.
+   */
+  public PaymentVerification verify(String id) {
+    PaymentEntity payment = require(id);
+    String explorerUrl = explorerUrl(payment);
+
+    if (payment.transactionId == null) {
+      String detail =
+          switch (PaymentStatus.valueOf(payment.status)) {
+            case REJECTED -> "Blocked before reaching Hedera: no transaction was created";
+            case SIMULATED -> "Simulated: no Hedera credentials, nothing was transferred";
+            case AWAITING_APPROVAL -> "Waiting for approval: not sent to Hedera yet";
+            default -> "No Hedera transaction for this payment";
+          };
+      return new PaymentVerification(
+          false, detail, payment.status, null, null, null, List.of(), null);
+    }
+
+    MirrorLookup lookup = mirrorClient.findTransaction(payment.transactionId);
+    if (PaymentStatus.SUBMITTED.name().equals(payment.status)) {
+      payment = settleFromLedger(payment, lookup);
+    }
+
+    return switch (lookup.state()) {
+      case UNAVAILABLE ->
+          new PaymentVerification(
+              false,
+              "Mirror Node could not be reached, try again",
+              payment.status,
+              payment.transactionId,
+              null,
+              null,
+              List.of(),
+              explorerUrl);
+      case NOT_FOUND ->
+          new PaymentVerification(
+              false,
+              PaymentStatus.FAILED.name().equals(payment.status)
+                  ? "Not on the ledger: the transfer never reached consensus"
+                  : "Mirror Node has no record of this transaction yet",
+              payment.status,
+              payment.transactionId,
+              null,
+              null,
+              List.of(),
+              explorerUrl);
+      case FOUND -> compare(payment, lookup.transaction(), explorerUrl);
+    };
+  }
+
+  /** Settles every payment left SUBMITTED long enough ago. Called at startup. */
+  public int settleStalePayments() {
+    int settled = 0;
+    for (PaymentEntity payment : repository.findByStatus(PaymentStatus.SUBMITTED.name())) {
+      if (payment.transactionId == null || !isStale(payment)) {
+        continue;
+      }
+      PaymentEntity after =
+          settleFromLedger(payment, mirrorClient.findTransaction(payment.transactionId));
+      if (!PaymentStatus.SUBMITTED.name().equals(after.status)) {
+        settled++;
+      }
+    }
+    return settled;
+  }
+
+  /**
+   * Only touches a payment nobody is still working on: a transfer in flight in this process can
+   * take up to two SDK timeouts, and settling it underneath would race with its own update.
+   */
+  private PaymentEntity settleFromLedger(PaymentEntity payment, MirrorLookup lookup) {
+    if (!isStale(payment)) {
+      return payment;
+    }
+    switch (lookup.state()) {
+      case FOUND -> {
+        MirrorTransaction tx = lookup.transaction();
+        boolean success = "SUCCESS".equals(tx.result());
+        payment.status = success ? PaymentStatus.CONFIRMED.name() : PaymentStatus.FAILED.name();
+        payment.failureReason = success ? null : tx.result();
+        if (payment.sourceAccount == null) {
+          payment.sourceAccount = payerOf(payment);
+        }
+      }
+      case NOT_FOUND -> {
+        // Past its validity window and unknown to the ledger: it can no longer execute.
+        payment.status = PaymentStatus.FAILED.name();
+        payment.failureReason = "never reached consensus";
+      }
+      case UNAVAILABLE -> {
+        return payment;
+      }
+    }
+    payment = touch(payment);
+    audit("TRANSFER_SETTLED", payment.status, payment);
+    return payment;
+  }
+
+  /**
+   * Older than the SDK's own retry budget (submit + receipt timeouts) plus the transaction's
+   * validity window: whatever was going to happen has happened.
+   */
+  private static boolean isStale(PaymentEntity payment) {
+    return payment.updatedAt == null
+        || payment.updatedAt.isBefore(Instant.now().minus(SETTLE_AFTER));
+  }
+
+  private PaymentVerification compare(
+      PaymentEntity payment, MirrorTransaction tx, String explorerUrl) {
+    List<PaymentVerification.Check> checks = new ArrayList<>();
+    String source = payment.sourceAccount != null ? payment.sourceAccount : payerOf(payment);
+
+    if (PaymentStatus.FAILED.name().equals(payment.status)) {
+      // A refused transfer still reaches consensus (and costs its fee); what matters is that the
+      // ledger agrees it failed and that nothing reached the recipient.
+      long received =
+          payment.tokenId == null
+              ? tx.hbarTransfers().getOrDefault(payment.destination, 0L)
+              : tx.tokenChange(payment.tokenId, payment.destination);
+      checks.add(new PaymentVerification.Check("Network result",
+          payment.failureReason == null ? "not SUCCESS" : payment.failureReason, tx.result(),
+          !"SUCCESS".equals(tx.result())
+              && (payment.failureReason == null || payment.failureReason.equals(tx.result()))));
+      checks.add(new PaymentVerification.Check("Nothing reached the recipient", "0",
+          String.valueOf(received), received == 0));
+      boolean consistent = checks.stream().allMatch(PaymentVerification.Check::ok);
+      return new PaymentVerification(
+          consistent,
+          consistent
+              ? "Ledger confirms the transfer failed (" + tx.result()
+                  + "); the network fee was still charged"
+              : "Ledger does not match the failure we recorded: see the failed checks",
+          payment.status,
+          payment.transactionId,
+          tx.result(),
+          tx.consensusTimestamp(),
+          checks,
+          explorerUrl);
+    }
+
+    checks.add(new PaymentVerification.Check("Network result", "SUCCESS", tx.result(),
+        "SUCCESS".equals(tx.result())));
+    if (payment.tokenId == null) {
+      long received = tx.hbarTransfers().getOrDefault(payment.destination, 0L);
+      long paid = -tx.hbarTransfers().getOrDefault(source, 0L);
+      checks.add(new PaymentVerification.Check("Recipient received",
+          hbar(payment.amountUnits) + " to " + payment.destination, hbar(received),
+          received == payment.amountUnits));
+      // The sender's HBAR change includes the network fee, so it is at least the amount.
+      checks.add(new PaymentVerification.Check("Sender paid",
+          "at least " + hbar(payment.amountUnits) + " from " + source,
+          hbar(paid) + " (fee included)", paid >= payment.amountUnits));
+    } else {
+      long received = tx.tokenChange(payment.tokenId, payment.destination);
+      long sent = -tx.tokenChange(payment.tokenId, source);
+      checks.add(new PaymentVerification.Check("Recipient received",
+          payment.amountUnits + " of " + payment.tokenId + " to " + payment.destination,
+          received + " of " + payment.tokenId, received == payment.amountUnits));
+      checks.add(new PaymentVerification.Check("Sender sent",
+          payment.amountUnits + " of " + payment.tokenId + " from " + source,
+          sent + " of " + payment.tokenId, sent == payment.amountUnits));
+    }
+
+    boolean verified = checks.stream().allMatch(PaymentVerification.Check::ok);
+    return new PaymentVerification(
+        verified,
+        verified
+            ? "Ledger transaction matches the payment"
+            : "Ledger transaction does not match the payment: see the failed checks",
+        payment.status,
+        payment.transactionId,
+        tx.result(),
+        tx.consensusTimestamp(),
+        checks,
+        explorerUrl);
+  }
+
+  /** The payer is the account part of the transaction id, e.g. 0.0.5239440 in 0.0.5239440@… */
+  private static String payerOf(PaymentEntity payment) {
+    int at = payment.transactionId.indexOf('@');
+    return at < 0 ? null : payment.transactionId.substring(0, at);
+  }
+
+  private static String hbar(long tinybars) {
+    return BigDecimal.valueOf(tinybars, HBAR_DECIMALS).stripTrailingZeros().toPlainString() + " ℏ";
   }
 
   private PaymentEntity requireAwaitingApproval(String id) {
@@ -230,10 +441,7 @@ public class PaymentService {
         p.status,
         p.sourceAccount,
         p.transactionId,
-        p.transactionId == null
-            ? null
-            : "https://hashscan.io/%s/transaction/%s"
-                .formatted(properties.getNetwork(), p.transactionId),
+        explorerUrl(p),
         p.policyVerdict,
         p.policyRuleId,
         p.policyReason,
@@ -242,6 +450,14 @@ public class PaymentService {
         p.requestedById,
         p.createdAt,
         p.updatedAt);
+  }
+
+  /** Only once the transfer was actually sent: a mock payment has nothing to show on HashScan. */
+  private String explorerUrl(PaymentEntity p) {
+    if (p.transactionId == null || !gateway.isLive()) {
+      return null;
+    }
+    return "https://hashscan.io/%s/transaction/%s".formatted(properties.getNetwork(), p.transactionId);
   }
 
   private static void putIfPresent(Map<String, Object> map, String key, String value) {

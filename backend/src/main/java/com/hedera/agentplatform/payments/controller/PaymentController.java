@@ -2,6 +2,7 @@ package com.hedera.agentplatform.payments.controller;
 
 import com.hedera.agentplatform.payments.dto.CreatePaymentRequest;
 import com.hedera.agentplatform.payments.dto.PaymentResponse;
+import com.hedera.agentplatform.payments.dto.PaymentVerification;
 import com.hedera.agentplatform.payments.service.PaymentService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -43,6 +44,12 @@ public class PaymentController {
   @PostMapping("/{id}/reject")
   public PaymentResponse reject(@PathVariable String id) {
     return service.reject(id);
+  }
+
+  /** Reads the transfer back from the Mirror Node and compares it with the payment. */
+  @GetMapping("/{id}/verification")
+  public PaymentVerification verify(@PathVariable String id) {
+    return service.verify(id);
   }
 
   /** Tells the UI whether payments really reach Hedera. */

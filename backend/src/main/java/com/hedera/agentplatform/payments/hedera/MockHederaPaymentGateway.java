@@ -7,12 +7,19 @@ package com.hedera.agentplatform.payments.hedera;
 public class MockHederaPaymentGateway implements HederaPaymentGateway {
 
   @Override
-  public PaymentResult transferHbar(String destination, long tinybars, String memo) {
+  public String newTransactionId() {
+    return null;
+  }
+
+  @Override
+  public PaymentResult transferHbar(
+      String transactionId, String destination, long tinybars, String memo) {
     return simulated();
   }
 
   @Override
-  public PaymentResult transferToken(String tokenId, String destination, long units, String memo) {
+  public PaymentResult transferToken(
+      String transactionId, String tokenId, String destination, long units, String memo) {
     return simulated();
   }
 
@@ -22,6 +29,6 @@ public class MockHederaPaymentGateway implements HederaPaymentGateway {
   }
 
   private static PaymentResult simulated() {
-    return new PaymentResult(true, null, "SIMULATED", null, true);
+    return new PaymentResult(Outcome.SUCCESS, null, "SIMULATED", null, true);
   }
 }

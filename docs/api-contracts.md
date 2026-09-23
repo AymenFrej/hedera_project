@@ -61,6 +61,7 @@ request → policy (ALLOW / HOLD / DENY) → [human approval if HOLD] → Hedera
 | `POST` | `/api/v1/payments` | check policy, then send or hold |
 | `POST` | `/api/v1/payments/{id}/approve` | send a held payment (`409` if it is not `AWAITING_APPROVAL`) |
 | `POST` | `/api/v1/payments/{id}/reject` | refuse a held payment |
+| `GET` | `/api/v1/payments/{id}/verification` | read the transfer back from the Mirror Node and compare it field by field |
 | `GET` | `/api/v1/payments/status` | `{ "ledgerActive": true }` when transfers really reach Hedera |
 
 `POST /api/v1/payments` body. Omit `tokenId` for HBAR. HBAR amounts accept up to 8 decimals
@@ -72,6 +73,40 @@ request → policy (ALLOW / HOLD / DENY) → [human approval if HOLD] → Hedera
 
 Like audit, the request has no "who" field: the requester comes from `ActorResolver`.
 
+### Verification: the Mirror Node is the source of truth
+
+The transaction id is generated and stored **before** the transfer is sent, so a payment always
+knows which ledger transaction to look for. `GET /payments/{id}/verification` reads it back from
+the Mirror Node and compares result, recipient and sender with the record:
+
+```json
+{
+  "verified": true,
+  "detail": "Ledger transaction matches the payment",
+  "paymentStatus": "CONFIRMED",
+  "transactionId": "0.0.5239440@1790194819.526000707",
+  "ledgerResult": "SUCCESS",
+  "consensusTimestamp": "1790194854.872086514",
+  "checks": [
+    { "name": "Network result", "expected": "SUCCESS", "actual": "SUCCESS", "ok": true },
+    { "name": "Recipient received", "expected": "0.01 ℏ to 0.0.10682427", "actual": "0.01 ℏ", "ok": true },
+    { "name": "Sender paid", "expected": "at least 0.01 ℏ from 0.0.5239440", "actual": "0.01128158 ℏ (fee included)", "ok": true }
+  ],
+  "explorerUrl": "https://hashscan.io/testnet/transaction/0.0.5239440@1790194819.526000707"
+}
+```
+
+- A **failed** payment verifies when the ledger agrees it failed and nothing reached the recipient.
+  A refused transfer still reaches consensus, so its network fee is charged.
+- A **blocked** payment (policy DENY, or rejected) has no transaction: *"Blocked before reaching
+  Hedera: no transaction was created"*.
+- **Recovery.** A timeout does not mean a transfer failed, so a payment with no receipt stays
+  `SUBMITTED`. Once it is older than 5 minutes (SDK retries plus the transaction's validity
+  window), verification settles it from the ledger: `CONFIRMED` or `FAILED` if the Mirror Node has
+  it, `FAILED` ("never reached consensus") if it does not. The same runs at startup for payments
+  left `SUBMITTED` before a restart. Nothing is concluded while the Mirror Node is unreachable.
+  Each settlement is audited as `TRANSFER_SETTLED`.
+
 For an HTS transfer the recipient must already be **associated** with the token, otherwise Hedera
 answers `TOKEN_NOT_ASSOCIATED_TO_ACCOUNT` and the payment ends `FAILED`.
 
@@ -81,7 +116,8 @@ answers `TOKEN_NOT_ASSOCIATED_TO_ACCOUNT` and the payment ends `FAILED`.
 |---|---|---|
 | `PAYMENT_POLICY` | `ALLOW` / `HOLD` / `DENY` | right after the policy decision |
 | `PAYMENT_APPROVAL` | `APPROVED` / `REJECTED` | a human decided on a held payment |
-| `TRANSFER` | `SUCCESS` / `FAILED` | after the Hedera receipt |
+| `TRANSFER` | `SUCCESS` / `FAILED` / `UNKNOWN` | after the Hedera receipt (`UNKNOWN`: no receipt, e.g. timeout) |
+| `TRANSFER_SETTLED` | `CONFIRMED` / `FAILED` | a `SUBMITTED` payment settled from the Mirror Node |
 
 Metadata carries `paymentId`, `amount`, `currency`, `destination`, and when known `envelope`,
 `policyRuleId`, `transactionId`, `failureReason`.
