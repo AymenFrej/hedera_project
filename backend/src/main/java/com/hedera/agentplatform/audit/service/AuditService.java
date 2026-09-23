@@ -135,6 +135,7 @@ public class AuditService {
       return VerificationResult.failure(
           "Mirror Node has no message %d on topic %s yet"
               .formatted(entity.sequenceNumber, entity.topicId),
+          entity.payloadHash,
           explorerUrl);
     }
 
@@ -142,10 +143,15 @@ public class AuditService {
     String ledgerHash = AuditPayload.sha256Hex(found.content());
 
     if (!ledgerHash.equals(entity.payloadHash)) {
+      // The database and the ledger disagree. The ledger cannot have changed, so the local record
+      // was altered after it was anchored.
       return new VerificationResult(
           false,
-          "Ledger content does not match the stored payload (expected hash %s, ledger %s)"
-              .formatted(entity.payloadHash, ledgerHash),
+          "Ledger content does not match the stored payload: the local record was altered after"
+              + " it was anchored",
+          entity.payloadHash,
+          ledgerHash,
+          entity.payload,
           found.content(),
           found.consensusTimestamp(),
           explorerUrl);
@@ -153,7 +159,10 @@ public class AuditService {
 
     return new VerificationResult(
         true,
-        "Ledger message matches the stored payload (SHA-256 %s)".formatted(ledgerHash),
+        "Ledger message matches the stored payload",
+        entity.payloadHash,
+        ledgerHash,
+        entity.payload,
         found.content(),
         found.consensusTimestamp(),
         explorerUrl);

@@ -66,6 +66,11 @@ export type RecordAuditEventRequest = {
 export type VerificationResult = {
   verified: boolean
   detail: string
+  /** SHA-256 of what our database holds. */
+  storedHash: string | null
+  /** SHA-256 of what the ledger actually holds. Differs from storedHash when the record was altered. */
+  ledgerHash: string | null
+  storedPayload: string | null
   ledgerPayload: string | null
   consensusTimestamp: string | null
   explorerUrl: string | null

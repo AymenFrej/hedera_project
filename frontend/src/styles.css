@@ -38,3 +38,13 @@
 .actor-chip{display:inline-flex;align-items:center;gap:5px;margin-top:5px;padding:3px 8px;border-radius:5px;background:#1a1d28;border:1px solid #262b39;color:#98a0b4;font-size:10px;font-weight:600;width:fit-content}
 .actor-chip .mono{font-family:'DM Mono',ui-monospace,monospace;color:#6d7488;font-weight:400}
 .data-leading > div{display:flex;flex-direction:column}
+.hash-compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.hash-side{padding:11px 13px;border-radius:8px;border:1px solid;min-width:0}
+.hash-side.bad{background:#2a1618;border-color:#5c2429}
+.hash-side.good{background:#11251c;border-color:#1f4a35}
+.hash-label{display:block;font-size:9px;letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px;font-weight:700}
+.hash-side.bad .hash-label{color:#f28b93}
+.hash-side.good .hash-label{color:#7ee0ac}
+.hash-side code{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:#c8cedd;word-break:break-all;line-height:1.5}
+.hash-side .ledger-payload{margin-top:9px;font-size:9px}
+@media (max-width:1100px){.hash-compare{grid-template-columns:1fr}}

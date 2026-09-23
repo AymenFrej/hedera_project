@@ -78,6 +78,9 @@ export default function AuditPage() {
           result: {
             verified: false,
             detail: e instanceof Error ? e.message : 'Verification failed',
+            storedHash: null,
+            ledgerHash: null,
+            storedPayload: null,
             ledgerPayload: null,
             consensusTimestamp: null,
             explorerUrl: null,
@@ -252,11 +255,14 @@ function AuditRow({
 }
 
 function VerificationPanel({ result }: { result: VerificationResult }) {
+  const mismatch =
+    !result.verified && result.storedHash !== null && result.ledgerHash !== null
+
   return (
     <div className={`verification ${result.verified ? 'ok' : 'danger'}`}>
       <div className="verification-head">
         {result.verified ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-        <b>{result.verified ? 'Verified against the ledger' : 'Not verified'}</b>
+        <b>{result.verified ? 'Verified against the ledger' : 'Tampering detected'}</b>
         {result.explorerUrl && (
           <a href={result.explorerUrl} target="_blank" rel="noreferrer" className="text-button">
             View on HashScan <ExternalLink size={13} />
@@ -264,8 +270,22 @@ function VerificationPanel({ result }: { result: VerificationResult }) {
         )}
       </div>
       <p>{result.detail}</p>
-      {result.ledgerPayload && (
-        <pre className="ledger-payload">{result.ledgerPayload}</pre>
+
+      {mismatch ? (
+        <div className="hash-compare">
+          <div className="hash-side bad">
+            <span className="hash-label">In our database (altered)</span>
+            <code>{result.storedHash}</code>
+            {result.storedPayload && <pre className="ledger-payload">{result.storedPayload}</pre>}
+          </div>
+          <div className="hash-side good">
+            <span className="hash-label">On the ledger (unchangeable)</span>
+            <code>{result.ledgerHash}</code>
+            {result.ledgerPayload && <pre className="ledger-payload">{result.ledgerPayload}</pre>}
+          </div>
+        </div>
+      ) : (
+        result.ledgerPayload && <pre className="ledger-payload">{result.ledgerPayload}</pre>
       )}
     </div>
   )
