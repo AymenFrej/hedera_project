@@ -39,4 +39,18 @@ class PolicyDecideEndpointTest {
         .andExpect(jsonPath("$.ruleId").value("policy.ok"))
         .andExpect(jsonPath("$.approvalId").doesNotExist());
   }
+
+  @Test
+  void an_emergency_spend_is_held_and_returns_an_approval_handle() throws Exception {
+    mvc()
+        .perform(
+            post("/api/v1/policies/decide")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"envelope\":\"EMERGENCY\",\"amount\":50,\"counterparty\":\"landlord-tunis\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.verdict").value("HOLD"))
+        .andExpect(jsonPath("$.ruleId").value("emergency.human"))
+        .andExpect(jsonPath("$.approvalId").isNotEmpty());
+  }
 }
