@@ -14,8 +14,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> { return request<T>(path, init) }
 export function getAuthToken(): string | null { return localStorage.getItem('hedera.auth.token') }
-export function setAuthToken(token: string): void { localStorage.setItem('hedera.auth.token', token) }
-export function clearAuthToken(): void { localStorage.removeItem('hedera.auth.token') }
+export function setAuthToken(token: string, user?: unknown): void { localStorage.setItem('hedera.auth.token', token); if (user) localStorage.setItem('hedera.auth.user', JSON.stringify(user)) }
+export function clearAuthToken(): void { localStorage.removeItem('hedera.auth.token'); localStorage.removeItem('hedera.auth.user') }
+export function getAuthUser<T = { role: string; displayName: string; email: string }>(): T | null { const value = localStorage.getItem('hedera.auth.user'); return value ? JSON.parse(value) as T : null }
 
 export async function getHealth(): Promise<{ status: string }> {
   return request('/health')
