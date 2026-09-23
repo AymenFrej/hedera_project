@@ -34,6 +34,69 @@ export async function verifyAuditEvent(id: string): Promise<VerificationResult> 
   return request(`/audit/${encodeURIComponent(id)}/verification`)
 }
 
+/** Whether payments really reach Hedera, or are only simulated. */
+export async function getPaymentStatus(): Promise<{ ledgerActive: boolean }> {
+  return request('/payments/status')
+}
+
+export async function listPayments(): Promise<Payment[]> {
+  return request('/payments')
+}
+
+/** Checks the policy, then sends the transfer or holds it for approval. */
+export async function createPayment(body: CreatePaymentRequest): Promise<Payment> {
+  return request('/payments', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export async function approvePayment(id: string): Promise<Payment> {
+  return request(`/payments/${encodeURIComponent(id)}/approve`, { method: 'POST' })
+}
+
+export async function rejectPayment(id: string): Promise<Payment> {
+  return request(`/payments/${encodeURIComponent(id)}/reject`, { method: 'POST' })
+}
+
+export type PaymentStatus =
+  | 'PENDING'
+  | 'AWAITING_APPROVAL'
+  | 'REJECTED'
+  | 'SUBMITTED'
+  | 'CONFIRMED'
+  | 'FAILED'
+  | 'SIMULATED'
+
+export type Payment = {
+  id: string
+  amount: string
+  /** "HBAR", or the HTS token id. */
+  currency: string
+  tokenId: string | null
+  destination: string
+  envelope: string | null
+  memo: string | null
+  status: PaymentStatus
+  sourceAccount: string | null
+  transactionId: string | null
+  explorerUrl: string | null
+  policyVerdict: 'ALLOW' | 'HOLD' | 'DENY' | null
+  policyRuleId: string | null
+  policyReason: string | null
+  failureReason: string | null
+  /** Who asked for the payment. Resolved server-side, never sent by the client. */
+  requestedByType: 'USER' | 'AGENT' | 'SYSTEM' | null
+  requestedById: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export type CreatePaymentRequest = {
+  destination: string
+  amount: string
+  tokenId?: string
+  envelope?: string
+  memo?: string
+}
+
 export type AnchorStatus = 'PENDING' | 'ANCHORED' | 'FAILED'
 
 export type ActorType = 'USER' | 'AGENT' | 'SYSTEM'

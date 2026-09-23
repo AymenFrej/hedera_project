@@ -48,3 +48,13 @@
 .hash-side code{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:#c8cedd;word-break:break-all;line-height:1.5}
 .hash-side .ledger-payload{margin-top:9px;font-size:9px}
 @media (max-width:1100px){.hash-compare{grid-template-columns:1fr}}
+
+/* --- Payments page ------------------------------------------------------ */
+.payment-form{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 16px;margin-bottom:18px}
+.payment-form label{display:flex;flex-direction:column;gap:6px;font-size:10px;font-weight:700;color:#8a93a6}
+.payment-form label.wide{grid-column:span 3}
+.payment-form .optional{font-weight:400;color:#5f697e}
+.payment-form input,.payment-form select{border:1px solid #2c3241;background:#171b26;color:#d7dce8;border-radius:6px;padding:9px 10px;font-family:inherit;font-size:11px;outline:none}
+.payment-form input:focus,.payment-form select:focus{border-color:#7665cb}
+.payment-form .form-actions{display:flex;gap:8px;align-items:flex-end;justify-content:flex-end}
+.anchor-badge.ok{background:#11251c;border-color:#1f4a35;color:#7ee0ac}
