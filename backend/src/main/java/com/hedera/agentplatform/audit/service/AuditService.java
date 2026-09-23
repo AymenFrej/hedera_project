@@ -1,5 +1,178 @@
 package com.hedera.agentplatform.audit.service;
+
 import com.hedera.agentplatform.audit.dto.AuditEventResponse;
+import com.hedera.agentplatform.audit.entity.AnchorStatus;
+import com.hedera.agentplatform.audit.entity.AuditEventEntity;
+import com.hedera.agentplatform.audit.hedera.AnchorReceipt;
+import com.hedera.agentplatform.audit.hedera.AuditPayload;
+import com.hedera.agentplatform.audit.hedera.HederaAuditGateway;
+import com.hedera.agentplatform.audit.mirror.MirrorNodeClient;
+import com.hedera.agentplatform.audit.mirror.VerificationResult;
+import com.hedera.agentplatform.audit.repository.AuditEventRepository;
+import com.hedera.agentplatform.shared.config.HederaProperties;
+import com.hedera.agentplatform.shared.model.AuditEvent;
+import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-@Service public class AuditService { public List<AuditEventResponse> findAll() { return List.of(new AuditEventResponse("audit_demo", "PaymentAgent", "TRANSFER", "MOCK")); } }
+
+/**
+ * Records agent activity, anchors it to Hedera, and can prove afterwards that a stored event really
+ * is on the ledger.
+ */
+@Service
+public class AuditService {
+
+  private static final Logger log = LoggerFactory.getLogger(AuditService.class);
+
+  private final AuditEventRepository repository;
+  private final HederaAuditGateway gateway;
+  private final MirrorNodeClient mirrorNodeClient;
+  private final HederaProperties properties;
+
+  public AuditService(
+      AuditEventRepository repository,
+      HederaAuditGateway gateway,
+      MirrorNodeClient mirrorNodeClient,
+      HederaProperties properties) {
+    this.repository = repository;
+    this.gateway = gateway;
+    this.mirrorNodeClient = mirrorNodeClient;
+    this.properties = properties;
+  }
+
+  /**
+   * Records an agent action and submits it to HCS.
+   *
+   * <p>The local row is written first and kept even when the submission fails, so a failure is
+   * visible instead of silently dropped.
+   */
+  public AuditEventEntity record(
+      String agent, String action, String status, Map<String, Object> metadata) {
+
+    AuditEventEntity entity = new AuditEventEntity();
+    entity.id = "audit_" + UUID.randomUUID();
+    entity.agent = agent;
+    entity.action = action;
+    entity.status = status;
+    entity.createdAt = Instant.now();
+    entity.anchorStatus = AnchorStatus.PENDING.name();
+
+    AuditEvent event = new AuditEvent(entity.id, agent, action, status, entity.createdAt, metadata);
+    entity.payload = AuditPayload.canonicalJson(event);
+    entity.payloadHash = AuditPayload.sha256Hex(entity.payload);
+    repository.save(entity);
+
+    try {
+      AnchorReceipt receipt = gateway.publish(event);
+      entity.topicId = receipt.topicId();
+      entity.transactionId = receipt.transactionId();
+      entity.consensusTimestamp = receipt.consensusTimestamp();
+      entity.sequenceNumber = receipt.sequenceNumber();
+      entity.anchorStatus =
+          gateway.isLive() ? AnchorStatus.ANCHORED.name() : AnchorStatus.PENDING.name();
+    } catch (RuntimeException e) {
+      entity.anchorStatus = AnchorStatus.FAILED.name();
+      log.error("Audit event {} could not be anchored", entity.id, e);
+    }
+
+    return repository.save(entity);
+  }
+
+  /**
+   * Checks a stored event against the ledger by reading it back from the Mirror Node and comparing
+   * hashes. This is the part that turns "we wrote to a blockchain" into "we can prove this event
+   * exists".
+   */
+  public VerificationResult verify(String auditEventId) {
+    AuditEventEntity entity =
+        repository
+            .findById(auditEventId)
+            .orElseThrow(
+                () -> new IllegalArgumentException("Unknown audit event: " + auditEventId));
+
+    if (!AnchorStatus.ANCHORED.name().equals(entity.anchorStatus)
+        || entity.topicId == null
+        || entity.sequenceNumber == null) {
+      return VerificationResult.notAnchored();
+    }
+
+    String explorerUrl = explorerUrl(entity.topicId);
+    Optional<MirrorNodeClient.MirrorMessage> message =
+        mirrorNodeClient.findMessage(
+            properties.getMirrorNodeUrl(), entity.topicId, entity.sequenceNumber);
+
+    if (message.isEmpty()) {
+      return VerificationResult.failure(
+          "Mirror Node has no message %d on topic %s yet"
+              .formatted(entity.sequenceNumber, entity.topicId),
+          explorerUrl);
+    }
+
+    MirrorNodeClient.MirrorMessage found = message.get();
+    String ledgerHash = AuditPayload.sha256Hex(found.content());
+
+    if (!ledgerHash.equals(entity.payloadHash)) {
+      return new VerificationResult(
+          false,
+          "Ledger content does not match the stored payload (expected hash %s, ledger %s)"
+              .formatted(entity.payloadHash, ledgerHash),
+          found.content(),
+          found.consensusTimestamp(),
+          explorerUrl);
+    }
+
+    return new VerificationResult(
+        true,
+        "Ledger message matches the stored payload (SHA-256 %s)".formatted(ledgerHash),
+        found.content(),
+        found.consensusTimestamp(),
+        explorerUrl);
+  }
+
+  public List<AuditEventResponse> findAll() {
+    return repository.findAll().stream()
+        .sorted(
+            Comparator.comparing(
+                (AuditEventEntity e) -> e.createdAt,
+                Comparator.nullsLast(Comparator.reverseOrder())))
+        .map(AuditService::toResponse)
+        .toList();
+  }
+
+  public AuditEventResponse findById(String id) {
+    return repository
+        .findById(id)
+        .map(AuditService::toResponse)
+        .orElseThrow(() -> new IllegalArgumentException("Unknown audit event: " + id));
+  }
+
+  /** True when audit events are really being written to Hedera. */
+  public boolean isLedgerActive() {
+    return gateway.isLive();
+  }
+
+  private String explorerUrl(String topicId) {
+    return "https://hashscan.io/%s/topic/%s".formatted(properties.getNetwork(), topicId);
+  }
+
+  private static AuditEventResponse toResponse(AuditEventEntity entity) {
+    return new AuditEventResponse(
+        entity.id,
+        entity.agent,
+        entity.action,
+        entity.status,
+        entity.createdAt,
+        entity.anchorStatus,
+        entity.topicId,
+        entity.transactionId,
+        entity.consensusTimestamp,
+        entity.sequenceNumber,
+        entity.payloadHash);
+  }
+}
