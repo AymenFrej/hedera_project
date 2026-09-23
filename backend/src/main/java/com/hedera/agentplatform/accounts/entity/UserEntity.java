@@ -3,15 +3,14 @@ package com.hedera.agentplatform.accounts.entity;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.math.BigDecimal;
 
 @Entity
-@Table(name = "accounts")
-public class AccountEntity {
+@Table(name = "users")
+public class UserEntity {
     @Id public String id;
-    public String userId;
     public String email;
-    public String hederaAccountId;
-    public BigDecimal balance;
-    public String status;
+    public String displayName;
+    public String passwordHash;
+    public String role;
+    public String accountId;
 }

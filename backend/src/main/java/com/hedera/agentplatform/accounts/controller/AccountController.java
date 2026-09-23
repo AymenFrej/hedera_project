@@ -4,6 +4,7 @@ import com.hedera.agentplatform.accounts.dto.AccountResponse;
 import com.hedera.agentplatform.accounts.service.AccountService;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -16,4 +17,9 @@ public class AccountController {
 
     @GetMapping
     List<AccountResponse> findAll() { return service.findAll(); }
+
+    @GetMapping("/me")
+    AccountResponse current(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        return service.current(authorization);
+    }
 }
