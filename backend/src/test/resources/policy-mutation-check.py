@@ -10,11 +10,9 @@ import subprocess
 import pathlib
 import os
 
-SRC = pathlib.Path(
-    "backend/src/main/java/com/hedera/agentplatform/policies/PolicyEngine.java"
-)
-BACKUP = SRC.with_suffix(".java.bak")
-
+ROOT = pathlib.Path(__file__).resolve().parents[4]
+BACKEND = ROOT / "backend"
+SRC = BACKEND / "src/main/java/com/hedera/agentplatform/policies/PolicyEngine.java"
 MUTATIONS = {
     # DENY must be checked before HOLD. Make insufficient funds fall through
     # to the emergency/unknown HOLD branches instead.
@@ -41,36 +39,38 @@ MUTATIONS = {
 
 
 def run_tests() -> bool:
-    env = dict(os.environ, JAVA_HOME="/usr/lib/jvm/java-21-openjdk-amd64")
+    env = os.environ.copy()
+    wrapper = BACKEND / ("mvnw.cmd" if os.name == "nt" else "mvnw")
+    command = [str(wrapper), "test", "-Dtest=PolicyEngineTest"]
+    if not wrapper.exists():
+        command = ["mvn", "test", "-Dtest=PolicyEngineTest"]
     r = subprocess.run(
-        ["./mvnw", "test", "-Dtest=PolicyEngineTest"],
-        cwd="backend",
+        command,
+        cwd=BACKEND,
         capture_output=True,
         text=True,
         env=env,
     )
-    return "BUILD SUCCESS" in r.stdout
+    return r.returncode == 0 and "BUILD SUCCESS" in r.stdout
 
 
 def main() -> int:
-    shutil.copy(SRC, BACKUP)
+    original = SRC.read_text()
     survivors = []
     try:
         for name, (old, new) in MUTATIONS.items():
-            text = BACKUP.read_text()
-            if old not in text:
+            if old not in original:
                 print(f"SKIP  {name}: anchor not found - fix the harness")
                 survivors.append(name + " (anchor missing)")
                 continue
-            SRC.write_text(text.replace(old, new, 1))
+            SRC.write_text(original.replace(old, new, 1))
             if run_tests():
                 print(f"SURVIVED  {name}  <-- rule is NOT tested")
                 survivors.append(name)
             else:
                 print(f"killed    {name}")
     finally:
-        shutil.copy(BACKUP, SRC)
-        BACKUP.unlink()
+        SRC.write_text(original)
 
     if survivors:
         print(f"\n{len(survivors)} mutation(s) survived: {survivors}")
