@@ -19,7 +19,7 @@ export function clearAuthToken(): void { localStorage.removeItem('hedera.auth.to
 export function getAuthUser<T = { role: string; displayName: string; email: string }>(): T | null { const value = localStorage.getItem('hedera.auth.user'); return value ? JSON.parse(value) as T : null }
 export async function updateProfile(email: string, displayName: string) { const result = await request<any>('/auth/me/profile', { method: 'PUT', body: JSON.stringify({ email, displayName }) }); setAuthToken(result.token, result); return result }
 export async function changePassword(currentPassword: string, newPassword: string) { return request<void>('/auth/me/password', { method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }) }) }
-export async function logout() { try { await request<void>('/auth/logout', { method: 'POST' }) } finally { clearAuthToken() } }
+export async function logout() { try { await request<void>('/auth/logout', { method: 'POST' }) } catch { /* A restarted backend may already have forgotten the session. */ } finally { clearAuthToken() } }
 export async function deleteAccount() { try { await request<void>('/auth/me', { method: 'DELETE' }) } finally { clearAuthToken() } }
 export async function getCurrentAccount() { return request<{ id: string; hederaAccountId: string; balance: string; status: string }>('/accounts/me') }
 export type ManagedUser = { id: string; email: string; displayName: string; role: string; accountId: string; hederaAccountId: string }
