@@ -24,9 +24,10 @@ public class AuthService {
     private final AccountRepository accounts;
     private final HederaAccountGateway hedera;
     private final AuthSessionService sessions;
+    private final AccountKeyProtector keyProtector;
 
-    public AuthService(UserRepository users, AccountRepository accounts, HederaAccountGateway hedera, AuthSessionService sessions) {
-        this.users = users; this.accounts = accounts; this.hedera = hedera; this.sessions = sessions;
+    public AuthService(UserRepository users, AccountRepository accounts, HederaAccountGateway hedera, AuthSessionService sessions, AccountKeyProtector keyProtector) {
+        this.users = users; this.accounts = accounts; this.hedera = hedera; this.sessions = sessions; this.keyProtector = keyProtector;
     }
 
     @Transactional
@@ -39,7 +40,7 @@ public class AuthService {
         user.passwordHash = hash(request.password()); user.role = "USER";
         var wallet = hedera.createAccount("0");
         AccountEntity account = new AccountEntity(); account.id = "acct_" + UUID.randomUUID(); account.userId = user.id;
-        account.email = user.email; account.hederaAccountId = wallet.accountId(); account.balance = java.math.BigDecimal.ZERO; account.status = wallet.status();
+        account.email = user.email; account.hederaAccountId = wallet.accountId(); account.encryptedPrivateKey = keyProtector.encrypt(wallet.privateKey()); account.balance = java.math.BigDecimal.ZERO; account.status = wallet.status();
         user.accountId = account.id; users.save(user); accounts.save(account);
         return response(user, account);
     }

@@ -32,6 +32,9 @@ public class HederaProperties {
    */
   private String auditTopicId = "";
 
+  /** Secret used to encrypt generated user account keys at rest. */
+  private String accountKeyEncryptionSecret = "";
+
   /** Mirror Node REST base URL, used for verification (reads never go through the SDK). */
   private String mirrorNodeUrl = "https://testnet.mirrornode.hedera.com";
 
@@ -81,6 +84,9 @@ public class HederaProperties {
   public void setAuditTopicId(String auditTopicId) {
     this.auditTopicId = auditTopicId;
   }
+
+  public String getAccountKeyEncryptionSecret() { return accountKeyEncryptionSecret; }
+  public void setAccountKeyEncryptionSecret(String accountKeyEncryptionSecret) { this.accountKeyEncryptionSecret = accountKeyEncryptionSecret; }
 
   public String getMirrorNodeUrl() {
     return mirrorNodeUrl;
