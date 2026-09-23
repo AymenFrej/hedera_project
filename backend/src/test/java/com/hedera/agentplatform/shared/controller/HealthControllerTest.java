@@ -12,13 +12,13 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(HealthController.class)
 class HealthControllerTest {
 
-    @Autowired private MockMvc mockMvc;
+  @Autowired private MockMvc mockMvc;
 
-    @Test
-    void health_endpoint_returns_up() throws Exception {
-        mockMvc
-                .perform(get("/api/v1/health"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UP"));
-    }
+  @Test
+  void health_endpoint_returns_up() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/health"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("UP"));
+  }
 }
