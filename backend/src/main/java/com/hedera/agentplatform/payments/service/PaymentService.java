@@ -48,7 +48,7 @@ public class PaymentService {
   static final Duration SETTLE_AFTER = Duration.ofMinutes(5);
   private static final String IDEMPOTENCY_KEY = "[A-Za-z0-9_:-]{8,64}";
   /** A transfer the ledger never saw: there is nothing to link to on HashScan. */
-  private static final String NEVER_REACHED = "never reached consensus";
+  static final String NEVER_REACHED = "never reached consensus";
 
   private final PaymentRepository repository;
   private final HederaPaymentGateway gateway;

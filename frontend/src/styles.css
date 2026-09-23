@@ -90,3 +90,36 @@
 .preview-foot{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-top:14px}
 .button.secondary.danger{color:#f28b93;border-color:#5c2429}
 @media (max-width:1100px){.preview-grid{grid-template-columns:1fr}}
+
+/* --- Payment result ----------------------------------------------------- */
+.result-panel{margin-bottom:18px;border-left:3px solid #3a4052}
+.result-panel.ok{border-left-color:#3fb57f}
+.result-panel.warn{border-left-color:#d9a441}
+.result-panel.danger{border-left-color:#e0616b}
+.result-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.result-head h3{font-size:17px;margin:0 0 4px}
+.result-actions{display:flex;gap:6px}
+.result-summary{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin:16px 0 12px}
+.result-summary b{font-size:20px;letter-spacing:-.5px}
+.result-summary code{font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:#93c9ff}
+.result-badges{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.result-badges .anchor-badge{display:inline-flex;align-items:center;gap:4px}
+.result-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:26px;padding-top:14px;border-top:1px solid #222837}
+.timeline{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.timeline-step{display:flex;gap:10px;padding:0 0 14px;position:relative}
+.timeline-step:not(:last-child):before{content:'';position:absolute;left:7px;top:20px;bottom:2px;width:1px;background:#262b39}
+.timeline-step b{display:block;font-size:12px;margin-bottom:2px}
+.timeline-step .audit-meta{display:block;line-height:1.5}
+.timeline-icon{flex:none;margin-top:1px}
+.timeline-step.done .timeline-icon{color:#7ee0ac}
+.timeline-step.failed .timeline-icon{color:#f28b93}
+.timeline-step.waiting .timeline-icon{color:#e8bd6b}
+.timeline-step.not_created .timeline-icon{color:#f28b93}
+.proof-line{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin-top:5px;font-size:10px;color:#8a93a6;font-family:'DM Mono',ui-monospace,monospace}
+.proof-line.muted{color:#6d7488;font-family:inherit}
+.proof-line .text-button{font-size:10px;padding:0;cursor:pointer}
+.proof-ok{color:#7ee0ac;display:inline-flex;align-items:center;gap:3px}
+.proof-bad{color:#f28b93;display:inline-flex;align-items:center;gap:3px}
+.ledger-checks{margin:10px 0 14px}
+.button.hashscan{width:fit-content;text-decoration:none}
+@media (max-width:1100px){.result-grid{grid-template-columns:1fr}}

@@ -63,6 +63,9 @@ request → policy (ALLOW / HOLD / DENY) → [human approval if HOLD] → Hedera
 | `POST` | `/api/v1/payments/{id}/approve` | send a held payment (`409` if it is not `AWAITING_APPROVAL`) |
 | `POST` | `/api/v1/payments/{id}/reject` | refuse a held payment |
 | `GET` | `/api/v1/payments/{id}/verification` | read the transfer back from the Mirror Node and compare it field by field |
+| `GET` | `/api/v1/payments/{id}/result` | the result screen: outcome, Mirror Node check, timeline from the payment's audit events, each event verified on HCS |
+| `GET` | `/api/v1/payments/{id}/audit` | the audit events this payment wrote |
+| `GET` | `/api/v1/payments/{id}/audit/{eventId}/verification` | read one of them back from HCS (through the audit module) |
 | `GET` | `/api/v1/payments/balance` | balances of the paying account (HBAR + associated tokens), from the Mirror Node |
 | `GET` | `/api/v1/payments/status` | `{ "ledgerActive": true, "demoTokenId": "0.0.…", "demoRecipientId": "0.0.…" }` |
 
@@ -124,6 +127,24 @@ Two kinds of information, kept apart:
 | `SIMULATION` | no Hedera credentials: nothing to check, nothing would be transferred |
 
 `balanceAfter` is null when the balance is not enough; for HBAR the network fee comes on top.
+
+### Result
+
+`GET /payments/{id}/result` gathers what happened to one payment. Nothing in it is a fixed script:
+
+- `outcome`: `CONFIRMED`, `FAILED` (sent; Hedera refused it or it never reached consensus),
+  `BLOCKED` (policy DENY, never sent), `REJECTED` (a reviewer refused it, never sent),
+  `AWAITING_APPROVAL`, `IN_PROGRESS` (sent, no final result yet; checking again settles it),
+  `SIMULATED`. **BLOCKED is not FAILED**: a blocked payment never reached Hedera.
+- `timeline`: the payment record, then one step per audit event the payment wrote, found by the
+  `paymentId` inside the payload anchored to HCS. A step exists only because its event exists; the
+  only derived steps are facts about the record ("No Hedera transaction was created" when there is
+  no transaction id, "Waiting for a reviewer", "Waiting for the Hedera receipt").
+- `ledger`: the Mirror Node comparison, `null` when no transaction was created.
+- `audit`: each event with its anchoring, read back from HCS when anchored.
+- `badges`: `policyChecked` (a real policy decided, not `policy.none`), `ledgerVerified` (confirmed
+  and matching on the Mirror Node), `auditVerified` (every event read back from HCS and matching).
+  A badge is false unless its check just passed.
 
 ### Verification: the Mirror Node is the source of truth
 

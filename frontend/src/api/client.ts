@@ -119,6 +119,79 @@ export type PaymentPreview = {
   note: string
 }
 
+/** Everything the result screen shows, each part from something that actually happened. */
+export async function getPaymentResult(id: string): Promise<PaymentReceipt> {
+  return request(`/payments/${encodeURIComponent(id)}/result`)
+}
+
+/** Reads one of the payment's audit events back from HCS. */
+export async function verifyPaymentAuditEvent(
+  paymentId: string,
+  eventId: string,
+): Promise<VerificationResult> {
+  return request(
+    `/payments/${encodeURIComponent(paymentId)}/audit/${encodeURIComponent(eventId)}/verification`,
+  )
+}
+
+export type ReceiptOutcome =
+  | 'CONFIRMED'
+  | 'FAILED'
+  | 'BLOCKED'
+  | 'REJECTED'
+  | 'AWAITING_APPROVAL'
+  | 'IN_PROGRESS'
+  | 'SIMULATED'
+
+export type ReceiptStep = {
+  label: string
+  state: 'DONE' | 'FAILED' | 'WAITING' | 'NOT_CREATED'
+  at: string | null
+  detail: string | null
+  auditEventId: string | null
+}
+
+export type AuditProof = {
+  id: string
+  action: string
+  status: string
+  createdAt: string | null
+  anchorStatus: AnchorStatus
+  topicId: string | null
+  sequenceNumber: number | null
+  /** true only when read back from HCS with a matching hash; null when never anchored. */
+  verified: boolean | null
+  verificationDetail: string | null
+  explorerUrl: string | null
+}
+
+export type LedgerCheck = { name: string; expected: string; actual: string; ok: boolean }
+
+export type PaymentVerification = {
+  verified: boolean
+  detail: string
+  paymentStatus: PaymentStatus
+  transactionId: string | null
+  ledgerResult: string | null
+  consensusTimestamp: string | null
+  checks: LedgerCheck[]
+  explorerUrl: string | null
+}
+
+export type PaymentReceipt = {
+  payment: Payment
+  outcome: ReceiptOutcome
+  headline: string
+  detail: string
+  onLedger: boolean
+  ledger: PaymentVerification | null
+  timeline: ReceiptStep[]
+  audit: AuditProof[]
+  /** Only facts a backend check just confirmed. */
+  badges: { policyChecked: boolean; ledgerVerified: boolean; auditVerified: boolean }
+  network: string
+}
+
 export async function approvePayment(id: string): Promise<Payment> {
   return request(`/payments/${encodeURIComponent(id)}/approve`, { method: 'POST' })
 }

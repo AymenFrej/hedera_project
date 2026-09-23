@@ -1,11 +1,15 @@
 package com.hedera.agentplatform.payments.controller;
 
+import com.hedera.agentplatform.audit.dto.AuditEventResponse;
+import com.hedera.agentplatform.audit.mirror.VerificationResult;
 import com.hedera.agentplatform.payments.dto.BalanceResponse;
 import com.hedera.agentplatform.payments.dto.CreatePaymentRequest;
 import com.hedera.agentplatform.payments.dto.PaymentPreview;
+import com.hedera.agentplatform.payments.dto.PaymentReceipt;
 import com.hedera.agentplatform.payments.dto.PaymentResponse;
 import com.hedera.agentplatform.payments.dto.PaymentVerification;
 import com.hedera.agentplatform.payments.service.PaymentPreviewService;
+import com.hedera.agentplatform.payments.service.PaymentReceiptService;
 import com.hedera.agentplatform.payments.service.PaymentService;
 import jakarta.validation.Valid;
 import java.util.LinkedHashMap;
@@ -20,16 +24,19 @@ import org.springframework.web.bind.annotation.*;
 public class PaymentController {
   private final PaymentService service;
   private final PaymentPreviewService previews;
+  private final PaymentReceiptService receipts;
   private final String demoTokenId;
   private final String demoRecipientId;
 
   public PaymentController(
       PaymentService service,
       PaymentPreviewService previews,
+      PaymentReceiptService receipts,
       @Value("${payments.demo-token-id:}") String demoTokenId,
       @Value("${payments.demo-recipient-id:}") String demoRecipientId) {
     this.service = service;
     this.previews = previews;
+    this.receipts = receipts;
     this.demoTokenId = demoTokenId.isBlank() ? null : demoTokenId.trim();
     this.demoRecipientId = demoRecipientId.isBlank() ? null : demoRecipientId.trim();
   }
@@ -70,6 +77,27 @@ public class PaymentController {
   @PostMapping("/{id}/reject")
   public PaymentResponse reject(@PathVariable String id) {
     return service.reject(id);
+  }
+
+  /**
+   * Everything the result screen shows: status, the Mirror Node's view of the transaction, the
+   * timeline built from the payment's audit events, and each event verified on HCS.
+   */
+  @GetMapping("/{id}/result")
+  public PaymentReceipt result(@PathVariable String id) {
+    return receipts.receipt(id);
+  }
+
+  /** The audit events this payment wrote. */
+  @GetMapping("/{id}/audit")
+  public List<AuditEventResponse> audit(@PathVariable String id) {
+    return receipts.auditEvents(id);
+  }
+
+  /** Reads one of this payment's audit events back from HCS. */
+  @GetMapping("/{id}/audit/{eventId}/verification")
+  public VerificationResult verifyAudit(@PathVariable String id, @PathVariable String eventId) {
+    return receipts.verifyAuditEvent(id, eventId);
   }
 
   /** Balances of the account payments leave from, from the Mirror Node. Facts only. */

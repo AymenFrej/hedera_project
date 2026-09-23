@@ -30,6 +30,7 @@ import {
   type PaymentStatus,
   type PaymentsStatus,
 } from '../api/client'
+import PaymentResultPanel from '../modules/payments/PaymentResultPanel'
 
 const ENVELOPES = ['', 'RENT', 'ESSENTIALS', 'EMERGENCY']
 
@@ -61,6 +62,8 @@ export default function PaymentsPage() {
   // The request a preview was made for: Execute sends exactly this, never the (possibly edited) form.
   const [preview, setPreview] = useState<{ request: CreatePaymentRequest; result: PaymentPreview } | null>(null)
   const [previewing, setPreviewing] = useState(false)
+  // The payment whose result is open; set after Execute, or from a row.
+  const [resultId, setResultId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
@@ -137,7 +140,8 @@ export default function PaymentsPage() {
     setSubmitting(true)
     setError(null)
     try {
-      await createPayment(preview.request, attemptKey)
+      const created = await createPayment(preview.request, attemptKey)
+      setResultId(created.id)
       setPreview(null)
       setForm(EMPTY_FORM)
       setCustomToken(false)
@@ -297,6 +301,17 @@ export default function PaymentsPage() {
         />
       )}
 
+      {resultId && (
+        <PaymentResultPanel
+          key={resultId}
+          paymentId={resultId}
+          onClose={() => {
+            setResultId(null)
+            void refresh()
+          }}
+        />
+      )}
+
       <div className="section-label">
         <span>PAYMENTS</span>
         <span className="line" />
@@ -324,6 +339,10 @@ export default function PaymentsPage() {
                 busy={busyId === p.id}
                 onDecide={(action) => void decide(p.id, action)}
                 symbolOf={symbolOf}
+                onOpen={() => {
+                  setResultId(p.id)
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
               />
             ))}
           </div>
@@ -338,11 +357,13 @@ function PaymentRow({
   busy,
   onDecide,
   symbolOf,
+  onOpen,
 }: {
   payment: Payment
   busy: boolean
   onDecide: (action: 'approve' | 'reject') => void
   symbolOf: (tokenId: string | null) => string | null
+  onOpen: () => void
 }) {
   const reason = p.failureReason ?? p.policyReason
   return (
@@ -383,6 +404,9 @@ function PaymentRow({
               </button>
             </>
           )}
+          <button className="text-button" onClick={onOpen}>
+            Details
+          </button>
           {p.explorerUrl && (
             <a className="text-button" href={p.explorerUrl} target="_blank" rel="noreferrer">
               HashScan <ExternalLink size={12} />
