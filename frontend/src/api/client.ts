@@ -21,6 +21,7 @@ export async function updateProfile(email: string, displayName: string) { const 
 export async function changePassword(currentPassword: string, newPassword: string) { return request<void>('/auth/me/password', { method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }) }) }
 export async function logout() { try { await request<void>('/auth/logout', { method: 'POST' }) } finally { clearAuthToken() } }
 export async function deleteAccount() { try { await request<void>('/auth/me', { method: 'DELETE' }) } finally { clearAuthToken() } }
+export async function getCurrentAccount() { return request<{ id: string; hederaAccountId: string; balance: string; status: string }>('/accounts/me') }
 
 export async function getHealth(): Promise<{ status: string }> {
   return request('/health')
