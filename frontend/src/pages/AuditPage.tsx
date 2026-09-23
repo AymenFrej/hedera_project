@@ -8,6 +8,7 @@ import {
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
+  UserRound,
   XCircle,
 } from 'lucide-react'
 import {
@@ -200,6 +201,15 @@ function AuditRow({
               {event.createdAt ? new Date(event.createdAt).toLocaleString() : 'unknown date'}
               {event.sequenceNumber !== null && <> · seq {event.sequenceNumber}</>}
             </span>
+            {event.actorId && (
+              <span className="actor-chip">
+                <UserRound size={11} />
+                {event.actorType}
+                {' · '}
+                {event.actorId}
+                {event.actorHederaAccountId && <span className="mono"> ({event.actorHederaAccountId})</span>}
+              </span>
+            )}
           </div>
         </div>
         <div className="row-meta">

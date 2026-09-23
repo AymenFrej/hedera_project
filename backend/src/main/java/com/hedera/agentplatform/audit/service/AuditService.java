@@ -10,7 +10,9 @@ import com.hedera.agentplatform.audit.mirror.MirrorNodeClient;
 import com.hedera.agentplatform.audit.mirror.VerificationResult;
 import com.hedera.agentplatform.audit.repository.AuditEventRepository;
 import com.hedera.agentplatform.shared.config.HederaProperties;
+import com.hedera.agentplatform.shared.model.Actor;
 import com.hedera.agentplatform.shared.model.AuditEvent;
+import com.hedera.agentplatform.shared.security.ActorResolver;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -34,26 +36,42 @@ public class AuditService {
   private final HederaAuditGateway gateway;
   private final MirrorNodeClient mirrorNodeClient;
   private final HederaProperties properties;
+  private final ActorResolver actorResolver;
 
   public AuditService(
       AuditEventRepository repository,
       HederaAuditGateway gateway,
       MirrorNodeClient mirrorNodeClient,
-      HederaProperties properties) {
+      HederaProperties properties,
+      ActorResolver actorResolver) {
     this.repository = repository;
     this.gateway = gateway;
     this.mirrorNodeClient = mirrorNodeClient;
     this.properties = properties;
+    this.actorResolver = actorResolver;
   }
 
   /**
-   * Records an agent action and submits it to HCS.
+   * Records an agent action and submits it to HCS, attributing it to the current actor.
    *
    * <p>The local row is written first and kept even when the submission fails, so a failure is
    * visible instead of silently dropped.
    */
   public AuditEventEntity record(
       String agent, String action, String status, Map<String, Object> metadata) {
+    return record(agent, action, status, actorResolver.currentActor(), metadata);
+  }
+
+  /**
+   * Same, with an explicit actor. For callers that already resolved the identity themselves, such
+   * as a background job acting on behalf of a user.
+   *
+   * <p>The actor is written into the message content, not carried by the transaction payer: the
+   * platform signs and pays for every audit message, so the trail never depends on the audited
+   * party's willingness or HBAR balance.
+   */
+  public AuditEventEntity record(
+      String agent, String action, String status, Actor actor, Map<String, Object> metadata) {
 
     AuditEventEntity entity = new AuditEventEntity();
     entity.id = "audit_" + UUID.randomUUID();
@@ -62,8 +80,14 @@ public class AuditService {
     entity.status = status;
     entity.createdAt = Instant.now();
     entity.anchorStatus = AnchorStatus.PENDING.name();
+    if (actor != null) {
+      entity.actorType = actor.type() == null ? null : actor.type().name();
+      entity.actorId = actor.id();
+      entity.actorHederaAccountId = actor.hederaAccountId();
+    }
 
-    AuditEvent event = new AuditEvent(entity.id, agent, action, status, entity.createdAt, metadata);
+    AuditEvent event =
+        new AuditEvent(entity.id, agent, action, status, entity.createdAt, actor, metadata);
     entity.payload = AuditPayload.canonicalJson(event);
     entity.payloadHash = AuditPayload.sha256Hex(entity.payload);
     repository.save(entity);
@@ -168,6 +192,9 @@ public class AuditService {
         entity.action,
         entity.status,
         entity.createdAt,
+        entity.actorType,
+        entity.actorId,
+        entity.actorHederaAccountId,
         entity.anchorStatus,
         entity.topicId,
         entity.transactionId,

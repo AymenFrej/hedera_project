@@ -1,5 +1,6 @@
 package com.hedera.agentplatform.audit.hedera;
 
+import com.hedera.agentplatform.shared.model.Actor;
 import com.hedera.agentplatform.shared.model.AuditEvent;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -25,6 +26,17 @@ public final class AuditPayload {
     json.append(",\"status\":").append(quote(event.status()));
     json.append(",\"createdAt\":")
         .append(quote(event.createdAt() == null ? null : event.createdAt().toString()));
+
+    Actor actor = event.actor();
+    if (actor != null) {
+      json.append(",\"actor\":{\"type\":")
+          .append(quote(actor.type() == null ? null : actor.type().name()))
+          .append(",\"id\":")
+          .append(quote(actor.id()))
+          .append(",\"hederaAccountId\":")
+          .append(quote(actor.hederaAccountId()))
+          .append('}');
+    }
 
     Map<String, Object> metadata = event.metadata();
     if (metadata != null && !metadata.isEmpty()) {

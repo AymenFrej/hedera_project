@@ -36,12 +36,18 @@ export async function verifyAuditEvent(id: string): Promise<VerificationResult> 
 
 export type AnchorStatus = 'PENDING' | 'ANCHORED' | 'FAILED'
 
+export type ActorType = 'USER' | 'AGENT' | 'SYSTEM'
+
 export type AuditEvent = {
   id: string
   agent: string
   action: string
   status: string
   createdAt: string | null
+  /** Who the action is attributed to. Resolved server-side, never sent by the client. */
+  actorType: ActorType | null
+  actorId: string | null
+  actorHederaAccountId: string | null
   anchorStatus: AnchorStatus
   topicId: string | null
   transactionId: string | null

@@ -27,4 +27,12 @@ public class AuditEventEntity {
 
   /** PENDING, ANCHORED or FAILED — see AnchorStatus. */
   public String anchorStatus = AnchorStatus.PENDING.name();
+
+  /** USER, AGENT or SYSTEM — see ActorType. */
+  public String actorType;
+
+  public String actorId;
+
+  /** Hedera account of the actor, when it has one. Never the transaction payer. */
+  public String actorHederaAccountId;
 }

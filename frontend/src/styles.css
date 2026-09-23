@@ -35,3 +35,6 @@
 .verification-head .text-button{margin-left:auto;font-size:11px}
 .verification p{margin:9px 0 0;font-size:11px;color:#a7aec0;line-height:1.55}
 .ledger-payload{margin:11px 0 0;padding:11px;background:#0d1017;border:1px solid #1d222e;border-radius:7px;color:#93c9ff;overflow-x:auto;white-space:pre-wrap;word-break:break-all;line-height:1.6}
+.actor-chip{display:inline-flex;align-items:center;gap:5px;margin-top:5px;padding:3px 8px;border-radius:5px;background:#1a1d28;border:1px solid #262b39;color:#98a0b4;font-size:10px;font-weight:600;width:fit-content}
+.actor-chip .mono{font-family:'DM Mono',ui-monospace,monospace;color:#6d7488;font-weight:400}
+.data-leading > div{display:flex;flex-direction:column}

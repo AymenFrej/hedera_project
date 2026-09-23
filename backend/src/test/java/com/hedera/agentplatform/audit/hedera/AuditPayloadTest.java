@@ -17,6 +17,7 @@ class AuditPayloadTest {
         "TRANSFER",
         "SUCCESS",
         Instant.parse("2026-01-01T00:00:00Z"),
+        null,
         metadata);
   }
 
@@ -61,6 +62,7 @@ class AuditPayloadTest {
             "LINE\nBREAK",
             "SUCCESS",
             Instant.parse("2026-01-01T00:00:00Z"),
+            null,
             Map.of());
 
     String json = AuditPayload.canonicalJson(weird);

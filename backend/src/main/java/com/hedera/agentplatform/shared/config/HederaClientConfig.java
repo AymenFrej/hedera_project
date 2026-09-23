@@ -7,20 +7,20 @@ import com.hedera.hashgraph.sdk.PrivateKey;
 import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
  * Builds the Hedera {@link Client} when operator credentials are configured.
  *
- * <p>No credentials means no bean, which means the mock gateways stay in place. That keeps the
- * application runnable for teammates who have not created a testnet account.
+ * <p>No credentials means no client bean, which means the mock gateways stay in place. That keeps
+ * the application runnable for teammates who have not created a testnet account.
  */
 @Configuration
-@EnableConfigurationProperties(HederaProperties.class)
-@ConditionalOnProperty(prefix = "hedera", name = "operator-id")
+// Must test for a NON-EMPTY value: @ConditionalOnProperty matches a property that exists even when
+// it is blank, and `hedera.operator-id` always exists (it defaults to an empty string).
+@ConditionalOnExpression("!'${hedera.operator-id:}'.trim().isEmpty()")
 public class HederaClientConfig {
 
   private static final Logger log = LoggerFactory.getLogger(HederaClientConfig.class);

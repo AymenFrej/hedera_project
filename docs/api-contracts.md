@@ -35,6 +35,9 @@ attempted and refused).
   "action": "TRANSFER",
   "status": "SUCCESS",
   "createdAt": "2026-09-23T15:44:25Z",
+  "actorType": "USER",
+  "actorId": "user_42",
+  "actorHederaAccountId": "0.0.777",
   "anchorStatus": "ANCHORED",
   "topicId": "0.0.10683636",
   "transactionId": "0.0.10682427@1790178255.012000185",
@@ -75,6 +78,45 @@ Verification response:
 **Writes go through the SDK, reads go through the Mirror Node.** Free SDK queries are throttled on
 testnet and answer `BUSY`; reading the proof back through a different channel than the one that
 wrote it is also what makes the verification worth something.
+
+### Attribution: who performed the action
+
+Audit events carry an actor. Two rules decide the design:
+
+1. **The actor is resolved server-side, never sent by the client.** `POST /api/v1/audit` has no
+   actor field; anything an attacker puts in the body is ignored. A trail whose subject is chosen
+   by the caller proves nothing. This is covered by `AuditControllerActorTest`.
+2. **The platform signs and pays for every audit message.** The actor goes into the message
+   *content*, not into the transaction payer. If the audited party signed their own trail, they
+   could suppress it by refusing to sign or by running out of HBAR — the same reason an employee
+   does not write their own entry in an audit log.
+
+```json
+"actor": { "type": "USER", "id": "user_42", "hederaAccountId": "0.0.777" }
+```
+
+`type` is `USER`, `AGENT` or `SYSTEM`. `hederaAccountId` is null when the actor has no account.
+
+Until authentication exists, everything is attributed to `SYSTEM / platform`. No user is invented:
+writing a false actor to an immutable ledger is worse than writing none.
+
+#### Plugging in authentication (Accounts module)
+
+Declare an `ActorResolver` bean; it replaces the default automatically.
+
+```java
+@Component
+public class SessionActorResolver implements ActorResolver {
+    @Override
+    public Actor currentActor() {
+        var user = /* read from the session, not from request parameters */;
+        return Actor.user(user.id(), user.hederaAccountId());
+    }
+}
+```
+
+The user's wallet is still useful — for payments and token transfers, where the user *should* be
+the payer. It is only the audit trail that must stay platform-signed.
 
 ### Emitting audit events from another module
 

@@ -21,6 +21,7 @@ class MockHederaAuditGatewayTest {
                 "TEST",
                 "SUCCESS",
                 Instant.parse("2026-01-01T00:00:00Z"),
+                com.hedera.agentplatform.shared.model.Actor.system("platform"),
                 Map.of()));
 
     assertThat(gateway.isLive()).isFalse();
