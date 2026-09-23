@@ -6,8 +6,10 @@ import com.hedera.agentplatform.payments.dto.PaymentResponse;
 import com.hedera.agentplatform.payments.dto.PaymentVerification;
 import com.hedera.agentplatform.payments.service.PaymentService;
 import jakarta.validation.Valid;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,9 +17,16 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/payments")
 public class PaymentController {
   private final PaymentService service;
+  private final String demoTokenId;
+  private final String demoRecipientId;
 
-  public PaymentController(PaymentService service) {
+  public PaymentController(
+      PaymentService service,
+      @Value("${payments.demo-token-id:}") String demoTokenId,
+      @Value("${payments.demo-recipient-id:}") String demoRecipientId) {
     this.service = service;
+    this.demoTokenId = demoTokenId.isBlank() ? null : demoTokenId.trim();
+    this.demoRecipientId = demoRecipientId.isBlank() ? null : demoRecipientId.trim();
   }
 
   @GetMapping
@@ -33,8 +42,10 @@ public class PaymentController {
   /** Checks the policy, then sends the transfer or holds it for approval. */
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
-  public PaymentResponse create(@Valid @RequestBody CreatePaymentRequest request) {
-    return service.create(request);
+  public PaymentResponse create(
+      @Valid @RequestBody CreatePaymentRequest request,
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+    return service.create(request, idempotencyKey);
   }
 
   @PostMapping("/{id}/approve")
@@ -59,9 +70,16 @@ public class PaymentController {
     return service.verify(id);
   }
 
-  /** Tells the UI whether payments really reach Hedera. */
+  /**
+   * Tells the UI whether payments really reach Hedera, and which demo token and associated
+   * recipient are configured (null when none).
+   */
   @GetMapping("/status")
   public Map<String, Object> status() {
-    return Map.of("ledgerActive", service.isLedgerActive());
+    Map<String, Object> status = new LinkedHashMap<>();
+    status.put("ledgerActive", service.isLedgerActive());
+    status.put("demoTokenId", demoTokenId);
+    status.put("demoRecipientId", demoRecipientId);
+    return status;
   }
 }

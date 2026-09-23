@@ -43,6 +43,9 @@ public class PaymentEntity {
 
   public String requestedById;
 
+  /** Client-chosen key: the same key twice returns the first payment instead of paying twice. */
+  public String idempotencyKey;
+
   public Instant createdAt;
   public Instant updatedAt;
 

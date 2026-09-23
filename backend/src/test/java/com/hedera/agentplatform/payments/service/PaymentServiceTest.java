@@ -11,6 +11,7 @@ import com.hedera.agentplatform.payments.dto.PaymentResponse;
 import com.hedera.agentplatform.payments.policy.PaymentPolicy;
 import com.hedera.agentplatform.payments.policy.PaymentPolicy.PaymentPolicyDecision;
 import com.hedera.agentplatform.payments.policy.PaymentPolicy.Verdict;
+import com.hedera.agentplatform.payments.repository.PaymentRepository;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,7 @@ class PaymentServiceTest {
 
   @Autowired private PaymentService service;
   @Autowired private AuditEventRepository auditEvents;
+  @Autowired private PaymentRepository payments;
   @MockitoBean private PaymentPolicy policy;
 
   private static CreatePaymentRequest hbar(String amount) {
@@ -112,6 +114,41 @@ class PaymentServiceTest {
     assertThat(payment.currency()).isEqualTo("0.0.7777");
     assertThat(payment.tokenId()).isEqualTo("0.0.7777");
     assertThat(payment.status()).isEqualTo("SIMULATED");
+  }
+
+  @Test
+  void the_same_idempotency_key_twice_pays_once() {
+    policyAnswers(Verdict.ALLOW, "policy.ok");
+    long paymentsBefore = payments.count();
+
+    PaymentResponse first = service.create(hbar("3"), "form-4f1c2a9e");
+    PaymentResponse retry = service.create(hbar("3"), "form-4f1c2a9e");
+
+    assertThat(retry.id()).isEqualTo(first.id());
+    assertThat(payments.count() - paymentsBefore).isEqualTo(1);
+  }
+
+  @Test
+  void an_idempotency_key_reused_for_a_different_payment_is_refused() {
+    policyAnswers(Verdict.ALLOW, "policy.ok");
+    service.create(hbar("3"), "form-77aa01bc");
+
+    assertThatThrownBy(() -> service.create(hbar("4"), "form-77aa01bc"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("different payment");
+  }
+
+  @Test
+  void a_malformed_idempotency_key_is_refused() {
+    assertThatThrownBy(() -> service.create(hbar("3"), "bad key!"))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void amounts_are_shown_without_trailing_zeros() {
+    policyAnswers(Verdict.ALLOW, "policy.ok");
+
+    assertThat(service.create(hbar("12.50")).amount()).isEqualTo("12.5");
   }
 
   @Test

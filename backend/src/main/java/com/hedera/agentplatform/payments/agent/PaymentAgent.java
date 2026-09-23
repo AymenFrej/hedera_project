@@ -29,6 +29,7 @@ import org.springframework.stereotype.Component;
 public class PaymentAgent implements AgentCapability {
 
   static final String TRANSFER = "TRANSFER";
+  static final String REQUEST_ID = "requestId";
 
   private final PaymentService service;
   private final Validator validator;
@@ -56,6 +57,9 @@ public class PaymentAgent implements AgentCapability {
     }
 
     Map<String, Object> parameters = new HashMap<>(request.context());
+    if (request.requestId() != null) {
+      parameters.put(REQUEST_ID, request.requestId());
+    }
     String what =
         payment.amount()
             + " "
@@ -85,7 +89,9 @@ public class PaymentAgent implements AgentCapability {
       return new AgentResult(plan.planId(), AgentStatus.FAILED, problems, Map.of());
     }
 
-    PaymentResponse payment = service.create(request);
+    // One agent request is one payment, however many times the orchestrator retries it.
+    PaymentResponse payment = service.create(request, transfer.parameters().get(REQUEST_ID) == null
+        ? null : "agent:" + transfer.parameters().get(REQUEST_ID));
     AgentStatus status =
         switch (payment.status()) {
           case "AWAITING_APPROVAL" -> AgentStatus.APPROVAL_REQUIRED;

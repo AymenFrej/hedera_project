@@ -34,18 +34,63 @@ export async function verifyAuditEvent(id: string): Promise<VerificationResult> 
   return request(`/audit/${encodeURIComponent(id)}/verification`)
 }
 
-/** Whether payments really reach Hedera, or are only simulated. */
-export async function getPaymentStatus(): Promise<{ ledgerActive: boolean }> {
+export type PaymentsStatus = {
+  /** Whether payments really reach Hedera, or are only simulated. */
+  ledgerActive: boolean
+  /** Demo HTS token and a recipient already associated with it, when configured. */
+  demoTokenId: string | null
+  demoRecipientId: string | null
+}
+
+export async function getPaymentStatus(): Promise<PaymentsStatus> {
   return request('/payments/status')
+}
+
+/** Balances of the paying account, from the Mirror Node. Facts only. */
+export async function getPaymentBalance(): Promise<Balance> {
+  return request('/payments/balance')
+}
+
+export type BalanceAsset = {
+  tokenId: string | null
+  symbol: string | null
+  name: string | null
+  decimals: number
+  /** Smallest unit: tinybars, or the token's smallest unit. */
+  units: number
+  /** Same balance as a decimal string. */
+  amount: string
+}
+
+export type Balance = {
+  available: boolean
+  detail: string | null
+  account: string | null
+  hbar: BalanceAsset | null
+  tokens: BalanceAsset[]
+  asOf: string | null
+  explorerUrl: string | null
 }
 
 export async function listPayments(): Promise<Payment[]> {
   return request('/payments')
 }
 
-/** Checks the policy, then sends the transfer or holds it for approval. */
-export async function createPayment(body: CreatePaymentRequest): Promise<Payment> {
-  return request('/payments', { method: 'POST', body: JSON.stringify(body) })
+/**
+ * Checks the policy, then sends the transfer or holds it for approval.
+ *
+ * `idempotencyKey` identifies one payment attempt: sending it again (double click, retry after a
+ * network error) returns the payment already created instead of paying twice.
+ */
+export async function createPayment(
+  body: CreatePaymentRequest,
+  idempotencyKey: string,
+): Promise<Payment> {
+  return request('/payments', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: { 'Idempotency-Key': idempotencyKey },
+  })
 }
 
 export async function approvePayment(id: string): Promise<Payment> {

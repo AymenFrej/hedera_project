@@ -58,3 +58,8 @@
 .payment-form input:focus,.payment-form select:focus{border-color:#7665cb}
 .payment-form .form-actions{display:flex;gap:8px;align-items:flex-end;justify-content:flex-end}
 .anchor-badge.ok{background:#11251c;border-color:#1f4a35;color:#7ee0ac}
+.balance-bar{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;padding:11px 16px;margin-bottom:18px;border:1px solid #242a37;background:#121620;border-radius:10px;color:#a594f7;font-size:11px}
+.balance-bar .mono{font-family:'DM Mono',ui-monospace,monospace;color:#d7dce8;font-weight:500}
+.balance-asset{padding:3px 9px;border-radius:5px;background:#1a1d28;border:1px solid #262b39;color:#d7dce8;font-weight:700}
+.payment-form label{position:relative}
+.payment-form .text-button.inline{position:absolute;right:0;top:0;padding:0;font-size:10px;cursor:pointer}

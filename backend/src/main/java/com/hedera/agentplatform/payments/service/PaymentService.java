@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -45,6 +46,7 @@ public class PaymentService {
   public static final String AGENT = "PaymentAgent";
   private static final int HBAR_DECIMALS = 8;
   static final Duration SETTLE_AFTER = Duration.ofMinutes(5);
+  private static final String IDEMPOTENCY_KEY = "[A-Za-z0-9_:-]{8,64}";
 
   private final PaymentRepository repository;
   private final HederaPaymentGateway gateway;
@@ -73,7 +75,29 @@ public class PaymentService {
 
   /** Records the request, asks the policy, and sends the transfer when it is allowed. */
   public PaymentResponse create(CreatePaymentRequest request) {
+    return create(request, null);
+  }
+
+  /**
+   * Same, deduplicated by {@code idempotencyKey}: a request repeated with the same key (double
+   * click, retry after a network error) returns the payment already created instead of paying
+   * twice. Reusing a key for a different payment is refused.
+   */
+  public PaymentResponse create(CreatePaymentRequest request, String idempotencyKey) {
+    String key = blankToNull(idempotencyKey);
+    if (key != null) {
+      if (!key.matches(IDEMPOTENCY_KEY)) {
+        throw new IllegalArgumentException(
+            "Idempotency-Key must be 8 to 64 letters, digits, '-', '_' or ':'");
+      }
+      var existing = repository.findByIdempotencyKey(key);
+      if (existing.isPresent()) {
+        return replay(existing.get(), request);
+      }
+    }
+
     PaymentEntity payment = new PaymentEntity();
+    payment.idempotencyKey = key;
     payment.id = "pay_" + UUID.randomUUID();
     payment.destination = request.destination();
     payment.tokenId = blankToNull(request.tokenId());
@@ -91,7 +115,15 @@ public class PaymentService {
     payment.status = PaymentStatus.PENDING.name();
     payment.createdAt = Instant.now();
     payment.updatedAt = payment.createdAt;
-    payment = repository.save(payment);
+    try {
+      payment = repository.saveAndFlush(payment);
+    } catch (DataIntegrityViolationException e) {
+      // Two identical requests raced past the lookup above; the unique key let only one in.
+      if (key == null) {
+        throw e;
+      }
+      return replay(repository.findByIdempotencyKey(key).orElseThrow(() -> e), request);
+    }
 
     PaymentPolicyDecision decision = policy.evaluate(payment);
     payment.policyVerdict = decision.verdict().name();
@@ -110,6 +142,19 @@ public class PaymentService {
       payment = execute(payment);
     }
     return toResponse(payment);
+  }
+
+  /** Returns the payment a key already created, provided it is the same payment. */
+  private PaymentResponse replay(PaymentEntity existing, CreatePaymentRequest request) {
+    boolean same =
+        existing.destination.equals(request.destination())
+            && existing.amount.compareTo(new BigDecimal(request.amount())) == 0
+            && java.util.Objects.equals(existing.tokenId, blankToNull(request.tokenId()));
+    if (!same) {
+      throw new IllegalStateException(
+          "Idempotency-Key already used for a different payment (" + existing.id + ")");
+    }
+    return toResponse(existing);
   }
 
   /** A human approves a held payment; it is sent immediately. */
@@ -463,7 +508,7 @@ public class PaymentService {
   private void audit(String action, String status, PaymentEntity payment) {
     Map<String, Object> metadata = new LinkedHashMap<>();
     metadata.put("paymentId", payment.id);
-    metadata.put("amount", payment.amount.toPlainString());
+    metadata.put("amount", payment.amount.stripTrailingZeros().toPlainString());
     metadata.put("currency", payment.currency);
     metadata.put("destination", payment.destination);
     putIfPresent(metadata, "envelope", payment.envelope);
@@ -496,7 +541,7 @@ public class PaymentService {
   private PaymentResponse toResponse(PaymentEntity p) {
     return new PaymentResponse(
         p.id,
-        p.amount == null ? null : p.amount.toPlainString(),
+        p.amount == null ? null : p.amount.stripTrailingZeros().toPlainString(),
         p.currency,
         p.tokenId,
         p.destination,

@@ -63,7 +63,7 @@ request → policy (ALLOW / HOLD / DENY) → [human approval if HOLD] → Hedera
 | `POST` | `/api/v1/payments/{id}/reject` | refuse a held payment |
 | `GET` | `/api/v1/payments/{id}/verification` | read the transfer back from the Mirror Node and compare it field by field |
 | `GET` | `/api/v1/payments/balance` | balances of the paying account (HBAR + associated tokens), from the Mirror Node |
-| `GET` | `/api/v1/payments/status` | `{ "ledgerActive": true }` when transfers really reach Hedera |
+| `GET` | `/api/v1/payments/status` | `{ "ledgerActive": true, "demoTokenId": "0.0.…", "demoRecipientId": "0.0.…" }` |
 
 `POST /api/v1/payments` body. Omit `tokenId` for HBAR. HBAR amounts accept up to 8 decimals
 (1 tinybar); token amounts are in the token's **smallest unit** and must be whole numbers.
@@ -73,6 +73,13 @@ request → policy (ALLOW / HOLD / DENY) → [human approval if HOLD] → Hedera
 ```
 
 Like audit, the request has no "who" field: the requester comes from `ActorResolver`.
+
+**Idempotency.** Send an `Idempotency-Key` header (8–64 characters: letters, digits, `-`, `_`,
+`:`) that identifies one payment attempt. Repeating the request with the same key (double click,
+retry after a network error) returns the payment already created instead of paying twice; reusing
+the key for a different payment is refused with `409`. The Payments page sends a new key per
+attempt, and `PaymentAgent` uses the agent `requestId`, so an orchestrator retry never pays twice.
+Requests without the header are not deduplicated.
 
 ### Verification: the Mirror Node is the source of truth
 
@@ -129,6 +136,25 @@ person reads). `available` is false in simulation mode or when the Mirror Node i
 
 The account is whichever one payments leave from (`PaymentSigner.payer`), so it becomes the
 signed-in user's wallet once Accounts provides a signer.
+
+### Demo token and live tests
+
+`PAYMENT_DEMO_TOKEN_ID` / `PAYMENT_DEMO_RECIPIENT_ID` name a fixed-supply HTS token (**0 decimals**,
+so an amount in smallest units is the amount a person types) whose treasury is the operator, and a
+recipient already associated with it. Create them once, then copy the printed ids into `.env`:
+
+```bash
+cd backend && ./mvnw test -Dtest=PaymentDemoSetup
+```
+
+`PaymentTokenLiveIT` creates its own token and recipients on every run and checks, on testnet and
+through the Mirror Node: a transfer to an associated account (`CONFIRMED`), to a non-associated one
+(`TOKEN_NOT_ASSOCIATED_TO_ACCOUNT`), more than the balance (`INSUFFICIENT_TOKEN_BALANCE`), and an
+invalid token or recipient (`INVALID_TOKEN_ID` / `INVALID_ACCOUNT_ID`). It takes several minutes.
+
+```bash
+cd backend && ./mvnw test -Dtest=PaymentTokenLiveIT
+```
 
 For an HTS transfer the recipient must already be **associated** with the token, otherwise Hedera
 answers `TOKEN_NOT_ASSOCIATED_TO_ACCOUNT` and the payment ends `FAILED`.

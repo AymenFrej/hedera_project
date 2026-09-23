@@ -6,6 +6,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Wallet,
   ShieldAlert,
   ShieldCheck,
   X,
@@ -14,11 +15,14 @@ import {
 import {
   approvePayment,
   createPayment,
+  getPaymentBalance,
   getPaymentStatus,
   listPayments,
   rejectPayment,
+  type Balance,
   type Payment,
   type PaymentStatus,
+  type PaymentsStatus,
 } from '../api/client'
 
 const ENVELOPES = ['', 'RENT', 'ESSENTIALS', 'EMERGENCY']
@@ -34,23 +38,32 @@ const STATUS_TONE: Record<PaymentStatus, 'ok' | 'pending' | 'failed'> = {
 }
 
 const EMPTY_FORM = { destination: '', amount: '', tokenId: '', envelope: '', memo: '' }
+const OTHER_TOKEN = '__other__'
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([])
-  const [ledgerActive, setLedgerActive] = useState<boolean | null>(null)
+  const [status, setStatus] = useState<PaymentsStatus | null>(null)
+  const [balance, setBalance] = useState<Balance | null>(null)
+  const [customToken, setCustomToken] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [submitting, setSubmitting] = useState(false)
+  // One key per payment attempt, kept across retries of that attempt, renewed once it succeeds.
+  const [attemptKey, setAttemptKey] = useState(() => crypto.randomUUID())
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setError(null)
     try {
-      const [status, list] = await Promise.all([getPaymentStatus(), listPayments()])
-      setLedgerActive(status.ledgerActive)
+      const [s, list] = await Promise.all([getPaymentStatus(), listPayments()])
+      setStatus(s)
       setPayments(list)
+      // The balance comes from the Mirror Node and may be slower; it never blocks the page.
+      getPaymentBalance()
+        .then(setBalance)
+        .catch(() => setBalance(null))
     } catch (e) {
       setError(errorMessage(e, 'Backend unreachable'))
     } finally {
@@ -62,8 +75,26 @@ export default function PaymentsPage() {
     void refresh()
   }, [refresh])
 
+  const ledgerActive = status?.ledgerActive ?? null
+
+  /** Tokens the paying account holds, plus the demo token even before the balance loads. */
+  const tokenOptions = (() => {
+    const options = new Map<string, string>()
+    for (const t of balance?.tokens ?? []) {
+      if (t.tokenId) options.set(t.tokenId, `${t.symbol ?? 'Token'} · ${t.tokenId}`)
+    }
+    if (status?.demoTokenId && !options.has(status.demoTokenId)) {
+      options.set(status.demoTokenId, `Demo token · ${status.demoTokenId}`)
+    }
+    return [...options.entries()]
+  })()
+
+  const symbolOf = (tokenId: string | null) =>
+    balance?.tokens.find((t) => t.tokenId === tokenId)?.symbol ?? tokenId
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
+    if (submitting) return
     setSubmitting(true)
     setError(null)
     try {
@@ -73,8 +104,10 @@ export default function PaymentsPage() {
         tokenId: form.tokenId.trim() || undefined,
         envelope: form.envelope || undefined,
         memo: form.memo.trim() || undefined,
-      })
+      }, attemptKey)
       setForm(EMPTY_FORM)
+      setCustomToken(false)
+      setAttemptKey(crypto.randomUUID())
       setShowForm(false)
       await refresh()
     } catch (e) {
@@ -118,6 +151,7 @@ export default function PaymentsPage() {
       </div>
 
       <LedgerBanner ledgerActive={ledgerActive} />
+      {ledgerActive && <BalanceBar balance={balance} />}
 
       {error && (
         <div className="audit-banner danger">
@@ -133,6 +167,15 @@ export default function PaymentsPage() {
         <form className="panel payment-form" onSubmit={(e) => void handleSubmit(e)}>
           <label>
             Destination account
+            {status?.demoRecipientId && (
+              <button
+                type="button"
+                className="text-button inline"
+                onClick={() => setForm({ ...form, destination: status.demoRecipientId ?? '' })}
+              >
+                use demo recipient
+              </button>
+            )}
             <input
               required
               placeholder="0.0.12345"
@@ -151,12 +194,31 @@ export default function PaymentsPage() {
             />
           </label>
           <label>
-            Token id <span className="optional">optional, empty = HBAR</span>
-            <input
-              placeholder="0.0.67890"
-              value={form.tokenId}
-              onChange={(e) => setForm({ ...form, tokenId: e.target.value })}
-            />
+            Asset
+            <select
+              value={customToken ? OTHER_TOKEN : form.tokenId}
+              onChange={(e) => {
+                const other = e.target.value === OTHER_TOKEN
+                setCustomToken(other)
+                setForm({ ...form, tokenId: other ? '' : e.target.value })
+              }}
+            >
+              <option value="">HBAR</option>
+              {tokenOptions.map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+              <option value={OTHER_TOKEN}>Other token id…</option>
+            </select>
+            {customToken && (
+              <input
+                required
+                placeholder="0.0.67890"
+                value={form.tokenId}
+                onChange={(e) => setForm({ ...form, tokenId: e.target.value })}
+              />
+            )}
           </label>
           <label>
             Envelope
@@ -217,6 +279,7 @@ export default function PaymentsPage() {
                 payment={p}
                 busy={busyId === p.id}
                 onDecide={(action) => void decide(p.id, action)}
+                symbolOf={symbolOf}
               />
             ))}
           </div>
@@ -230,10 +293,12 @@ function PaymentRow({
   payment: p,
   busy,
   onDecide,
+  symbolOf,
 }: {
   payment: Payment
   busy: boolean
   onDecide: (action: 'approve' | 'reject') => void
+  symbolOf: (tokenId: string | null) => string | null
 }) {
   const reason = p.failureReason ?? p.policyReason
   return (
@@ -245,7 +310,7 @@ function PaymentRow({
           </div>
           <div>
             <b>
-              {p.amount} {p.currency === 'HBAR' ? 'ℏ' : p.currency} → {p.destination}
+              {p.amount} {p.currency === 'HBAR' ? 'ℏ' : symbolOf(p.tokenId)} → {p.destination}
             </b>
             <span className="audit-meta">
               {p.envelope ? `${p.envelope} · ` : ''}
@@ -284,6 +349,41 @@ function PaymentRow({
           </span>
         </div>
       </div>
+    </div>
+  )
+}
+
+/** Facts from the Mirror Node only: what the paying account holds, and when. */
+function BalanceBar({ balance }: { balance: Balance | null }) {
+  if (!balance || !balance.available) {
+    return (
+      <div className="balance-bar">
+        <Wallet size={15} />
+        <span className="audit-meta">
+          {balance ? balance.detail : 'Loading balance from the Mirror Node…'}
+        </span>
+      </div>
+    )
+  }
+  return (
+    <div className="balance-bar">
+      <Wallet size={15} />
+      <span className="audit-meta">Paying account</span>
+      <b className="mono">{balance.account}</b>
+      <span className="balance-asset">{balance.hbar?.amount} ℏ</span>
+      {balance.tokens.map((t) => (
+        <span key={t.tokenId} className="balance-asset">
+          {t.amount} {t.symbol ?? t.tokenId}
+        </span>
+      ))}
+      {balance.asOf && (
+        <span className="audit-meta">as of {new Date(balance.asOf).toLocaleTimeString()}</span>
+      )}
+      {balance.explorerUrl && (
+        <a className="text-button" href={balance.explorerUrl} target="_blank" rel="noreferrer">
+          HashScan <ExternalLink size={12} />
+        </a>
+      )}
     </div>
   )
 }

@@ -25,3 +25,8 @@ hedera:
   audit-topic-id: ${HEDERA_AUDIT_TOPIC_ID:}
   # Verification reads go through the Mirror Node REST API, never through the SDK.
   mirror-node-url: ${HEDERA_MIRROR_NODE_URL:https://testnet.mirrornode.hedera.com}
+
+payments:
+  # Optional demo fixtures, created once with: ./mvnw test -Dtest=PaymentDemoSetup
+  demo-token-id: ${PAYMENT_DEMO_TOKEN_ID:}
+  demo-recipient-id: ${PAYMENT_DEMO_RECIPIENT_ID:}
