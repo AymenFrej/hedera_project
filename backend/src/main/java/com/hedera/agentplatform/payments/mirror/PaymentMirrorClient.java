@@ -126,6 +126,88 @@ public class PaymentMirrorClient {
     }
   }
 
+  /** Whether an account exists, and how many tokens it accepts without explicit association. */
+  public AccountLookup findAccount(String accountId) {
+    String base = trimTrailingSlash(properties.getMirrorNodeUrl());
+    try {
+      HttpResponse<String> response =
+          get(base + "/api/v1/accounts/" + accountId + "?transactions=false");
+      if (response.statusCode() == 404) {
+        return new AccountLookup(LookupState.NOT_FOUND, null);
+      }
+      if (response.statusCode() != 200) {
+        return new AccountLookup(LookupState.UNAVAILABLE, null);
+      }
+      JsonNode node = JSON.readTree(response.body());
+      return new AccountLookup(
+          LookupState.FOUND,
+          new AccountInfo(
+              node.path("deleted").asBoolean(false),
+              node.path("max_automatic_token_associations").asInt(0)));
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return new AccountLookup(LookupState.UNAVAILABLE, null);
+    } catch (Exception e) {
+      log.warn("Mirror Node account lookup failed for {}: {}", accountId, e.getMessage());
+      return new AccountLookup(LookupState.UNAVAILABLE, null);
+    }
+  }
+
+  /** FOUND when the account is associated with the token, NOT_FOUND when it is not. */
+  public LookupState findAssociation(String accountId, String tokenId) {
+    String base = trimTrailingSlash(properties.getMirrorNodeUrl());
+    try {
+      HttpResponse<String> response =
+          get(base + "/api/v1/accounts/" + accountId + "/tokens?token.id=" + tokenId);
+      if (response.statusCode() == 404) {
+        return LookupState.NOT_FOUND;
+      }
+      if (response.statusCode() != 200) {
+        return LookupState.UNAVAILABLE;
+      }
+      return JSON.readTree(response.body()).path("tokens").isEmpty()
+          ? LookupState.NOT_FOUND
+          : LookupState.FOUND;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return LookupState.UNAVAILABLE;
+    } catch (Exception e) {
+      log.warn("Mirror Node association lookup failed for {}: {}", accountId, e.getMessage());
+      return LookupState.UNAVAILABLE;
+    }
+  }
+
+  /** Symbol, name and decimals of a token. */
+  public TokenLookup findToken(String tokenId) {
+    String base = trimTrailingSlash(properties.getMirrorNodeUrl());
+    try {
+      HttpResponse<String> response = get(base + "/api/v1/tokens/" + tokenId);
+      if (response.statusCode() == 404) {
+        return new TokenLookup(LookupState.NOT_FOUND, null);
+      }
+      if (response.statusCode() != 200) {
+        return new TokenLookup(LookupState.UNAVAILABLE, null);
+      }
+      JsonNode node = JSON.readTree(response.body());
+      if (node.path("deleted").asBoolean(false)) {
+        return new TokenLookup(LookupState.NOT_FOUND, null);
+      }
+      return new TokenLookup(
+          LookupState.FOUND,
+          new TokenInfo(
+              tokenId,
+              node.path("symbol").asText(null),
+              node.path("name").asText(null),
+              node.path("decimals").asInt(0)));
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return new TokenLookup(LookupState.UNAVAILABLE, null);
+    } catch (Exception e) {
+      log.warn("Mirror Node token lookup failed for {}: {}", tokenId, e.getMessage());
+      return new TokenLookup(LookupState.UNAVAILABLE, null);
+    }
+  }
+
   /** Token name, symbol and decimals; null when the Mirror Node does not answer. */
   private JsonNode tokenInfo(String base, String tokenId) throws Exception {
     HttpResponse<String> response = get(base + "/api/v1/tokens/" + tokenId);
@@ -222,6 +304,17 @@ public class PaymentMirrorClient {
       String tokenId, String symbol, String name, int decimals, long balance) {}
 
   public record BalanceLookup(LookupState state, AccountBalances balances) {}
+
+  /**
+   * @param maxAutomaticTokenAssociations -1 for unlimited, 0 for none, n for n free slots at most
+   */
+  public record AccountInfo(boolean deleted, int maxAutomaticTokenAssociations) {}
+
+  public record AccountLookup(LookupState state, AccountInfo account) {}
+
+  public record TokenInfo(String tokenId, String symbol, String name, int decimals) {}
+
+  public record TokenLookup(LookupState state, TokenInfo token) {}
 
   public enum LookupState {
     FOUND,

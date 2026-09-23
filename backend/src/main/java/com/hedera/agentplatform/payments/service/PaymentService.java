@@ -47,6 +47,8 @@ public class PaymentService {
   private static final int HBAR_DECIMALS = 8;
   static final Duration SETTLE_AFTER = Duration.ofMinutes(5);
   private static final String IDEMPOTENCY_KEY = "[A-Za-z0-9_:-]{8,64}";
+  /** A transfer the ledger never saw: there is nothing to link to on HashScan. */
+  private static final String NEVER_REACHED = "never reached consensus";
 
   private final PaymentRepository repository;
   private final HederaPaymentGateway gateway;
@@ -96,25 +98,8 @@ public class PaymentService {
       }
     }
 
-    PaymentEntity payment = new PaymentEntity();
+    PaymentEntity payment = draft(request);
     payment.idempotencyKey = key;
-    payment.id = "pay_" + UUID.randomUUID();
-    payment.destination = request.destination();
-    payment.tokenId = blankToNull(request.tokenId());
-    payment.currency = payment.tokenId == null ? "HBAR" : payment.tokenId;
-    payment.amount = new BigDecimal(request.amount());
-    payment.amountUnits = toUnits(payment.amount, payment.tokenId == null);
-    payment.envelope =
-        blankToNull(request.envelope()) == null
-            ? null
-            : request.envelope().trim().toUpperCase(Locale.ROOT);
-    payment.memo = blankToNull(request.memo());
-    Actor requester = actorResolver.currentActor();
-    payment.requestedByType = requester.type() == null ? null : requester.type().name();
-    payment.requestedById = requester.id();
-    payment.status = PaymentStatus.PENDING.name();
-    payment.createdAt = Instant.now();
-    payment.updatedAt = payment.createdAt;
     try {
       payment = repository.saveAndFlush(payment);
     } catch (DataIntegrityViolationException e) {
@@ -142,6 +127,32 @@ public class PaymentService {
       payment = execute(payment);
     }
     return toResponse(payment);
+  }
+
+  /**
+   * The payment a request describes, not saved. The preview evaluates the policy on exactly this,
+   * so what it shows is what execution would be asked.
+   */
+  PaymentEntity draft(CreatePaymentRequest request) {
+    PaymentEntity payment = new PaymentEntity();
+    payment.id = "pay_" + UUID.randomUUID();
+    payment.destination = request.destination();
+    payment.tokenId = blankToNull(request.tokenId());
+    payment.currency = payment.tokenId == null ? "HBAR" : payment.tokenId;
+    payment.amount = new BigDecimal(request.amount());
+    payment.amountUnits = toUnits(payment.amount, payment.tokenId == null);
+    payment.envelope =
+        blankToNull(request.envelope()) == null
+            ? null
+            : request.envelope().trim().toUpperCase(Locale.ROOT);
+    payment.memo = blankToNull(request.memo());
+    Actor requester = actorResolver.currentActor();
+    payment.requestedByType = requester.type() == null ? null : requester.type().name();
+    payment.requestedById = requester.id();
+    payment.status = PaymentStatus.PENDING.name();
+    payment.createdAt = Instant.now();
+    payment.updatedAt = payment.createdAt;
+    return payment;
   }
 
   /** Returns the payment a key already created, provided it is the same payment. */
@@ -288,7 +299,6 @@ public class PaymentService {
    */
   public PaymentVerification verify(String id) {
     PaymentEntity payment = require(id);
-    String explorerUrl = explorerUrl(payment);
 
     if (payment.transactionId == null) {
       String detail =
@@ -306,6 +316,8 @@ public class PaymentService {
     if (PaymentStatus.SUBMITTED.name().equals(payment.status)) {
       payment = settleFromLedger(payment, lookup);
     }
+    // After settling: a payment just found to have never reached the ledger gets no link.
+    String explorerUrl = explorerUrl(payment);
 
     return switch (lookup.state()) {
       case UNAVAILABLE ->
@@ -371,7 +383,7 @@ public class PaymentService {
       case NOT_FOUND -> {
         // Past its validity window and unknown to the ledger: it can no longer execute.
         payment.status = PaymentStatus.FAILED.name();
-        payment.failureReason = "never reached consensus";
+        payment.failureReason = NEVER_REACHED;
       }
       case UNAVAILABLE -> {
         return payment;
@@ -563,7 +575,7 @@ public class PaymentService {
 
   /** Only once the transfer was actually sent: a mock payment has nothing to show on HashScan. */
   private String explorerUrl(PaymentEntity p) {
-    if (p.transactionId == null || !gateway.isLive()) {
+    if (p.transactionId == null || !gateway.isLive() || NEVER_REACHED.equals(p.failureReason)) {
       return null;
     }
     return "https://hashscan.io/%s/transaction/%s".formatted(properties.getNetwork(), p.transactionId);

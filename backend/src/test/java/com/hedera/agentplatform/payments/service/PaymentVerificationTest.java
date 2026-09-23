@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.agentplatform.payments.dto.PaymentVerification;
 import com.hedera.agentplatform.payments.entity.PaymentEntity;
 import com.hedera.agentplatform.payments.entity.PaymentStatus;
+import com.hedera.agentplatform.payments.hedera.HederaPaymentGateway;
 import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient;
 import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.MirrorLookup;
 import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.MirrorTransaction;
@@ -15,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,6 +38,13 @@ class PaymentVerificationTest {
   @Autowired private PaymentService service;
   @Autowired private PaymentRepository repository;
   @MockitoBean private PaymentMirrorClient mirror;
+  @MockitoBean private HederaPaymentGateway gateway;
+
+  /** As on testnet: links are only produced for transfers that really went to Hedera. */
+  @BeforeEach
+  void liveGateway() {
+    when(gateway.isLive()).thenReturn(true);
+  }
 
   private PaymentEntity payment(PaymentStatus status, Instant updatedAt) {
     PaymentEntity p = new PaymentEntity();
@@ -77,6 +86,7 @@ class PaymentVerificationTest {
     assertThat(v.verified()).isTrue();
     assertThat(v.paymentStatus()).isEqualTo("CONFIRMED");
     assertThat(v.checks()).extracting("ok").containsOnly(true);
+    assertThat(v.explorerUrl()).contains("hashscan.io").contains(TX);
     assertThat(repository.findById(p.id).orElseThrow().sourceAccount).isEqualTo(SENDER);
   }
 
@@ -117,6 +127,8 @@ class PaymentVerificationTest {
 
     assertThat(v.paymentStatus()).isEqualTo("FAILED");
     assertThat(v.detail()).contains("never reached consensus");
+    assertThat(v.explorerUrl()).as("no HashScan link to a transaction that does not exist").isNull();
+    assertThat(service.findById(p.id).explorerUrl()).isNull();
   }
 
   @Test

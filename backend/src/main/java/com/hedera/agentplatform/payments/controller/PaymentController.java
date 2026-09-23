@@ -2,8 +2,10 @@ package com.hedera.agentplatform.payments.controller;
 
 import com.hedera.agentplatform.payments.dto.BalanceResponse;
 import com.hedera.agentplatform.payments.dto.CreatePaymentRequest;
+import com.hedera.agentplatform.payments.dto.PaymentPreview;
 import com.hedera.agentplatform.payments.dto.PaymentResponse;
 import com.hedera.agentplatform.payments.dto.PaymentVerification;
+import com.hedera.agentplatform.payments.service.PaymentPreviewService;
 import com.hedera.agentplatform.payments.service.PaymentService;
 import jakarta.validation.Valid;
 import java.util.LinkedHashMap;
@@ -17,14 +19,17 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/payments")
 public class PaymentController {
   private final PaymentService service;
+  private final PaymentPreviewService previews;
   private final String demoTokenId;
   private final String demoRecipientId;
 
   public PaymentController(
       PaymentService service,
+      PaymentPreviewService previews,
       @Value("${payments.demo-token-id:}") String demoTokenId,
       @Value("${payments.demo-recipient-id:}") String demoRecipientId) {
     this.service = service;
+    this.previews = previews;
     this.demoTokenId = demoTokenId.isBlank() ? null : demoTokenId.trim();
     this.demoRecipientId = demoRecipientId.isBlank() ? null : demoRecipientId.trim();
   }
@@ -46,6 +51,15 @@ public class PaymentController {
       @Valid @RequestBody CreatePaymentRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
     return service.create(request, idempotencyKey);
+  }
+
+  /**
+   * What executing this payment would do: policy verdict and ledger facts. Nothing is recorded,
+   * sent or audited, and it authorizes nothing: executing asks the policy again.
+   */
+  @PostMapping("/preview")
+  public PaymentPreview preview(@Valid @RequestBody CreatePaymentRequest request) {
+    return previews.preview(request);
   }
 
   @PostMapping("/{id}/approve")

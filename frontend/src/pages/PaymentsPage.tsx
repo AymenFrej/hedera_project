@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
+  AlertTriangle,
   ArrowLeftRight,
   Check,
+  CircleHelp,
+  Eye,
   ExternalLink,
   Loader2,
   Plus,
@@ -18,8 +21,11 @@ import {
   getPaymentBalance,
   getPaymentStatus,
   listPayments,
+  previewPayment,
   rejectPayment,
   type Balance,
+  type CreatePaymentRequest,
+  type PaymentPreview,
   type Payment,
   type PaymentStatus,
   type PaymentsStatus,
@@ -52,6 +58,9 @@ export default function PaymentsPage() {
   const [submitting, setSubmitting] = useState(false)
   // One key per payment attempt, kept across retries of that attempt, renewed once it succeeds.
   const [attemptKey, setAttemptKey] = useState(() => crypto.randomUUID())
+  // The request a preview was made for: Execute sends exactly this, never the (possibly edited) form.
+  const [preview, setPreview] = useState<{ request: CreatePaymentRequest; result: PaymentPreview } | null>(null)
+  const [previewing, setPreviewing] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
@@ -92,19 +101,44 @@ export default function PaymentsPage() {
   const symbolOf = (tokenId: string | null) =>
     balance?.tokens.find((t) => t.tokenId === tokenId)?.symbol ?? tokenId
 
-  async function handleSubmit(event: FormEvent) {
+  function requestFromForm(): CreatePaymentRequest {
+    return {
+      destination: form.destination.trim(),
+      amount: form.amount.trim(),
+      tokenId: form.tokenId.trim() || undefined,
+      envelope: form.envelope || undefined,
+      memo: form.memo.trim() || undefined,
+    }
+  }
+
+  /** Any edit makes the preview stale: it no longer describes what Execute would send. */
+  function updateForm(next: typeof form) {
+    setForm(next)
+    setPreview(null)
+  }
+
+  async function handlePreview(event: FormEvent) {
     event.preventDefault()
-    if (submitting) return
+    if (previewing) return
+    setPreviewing(true)
+    setError(null)
+    try {
+      const request = requestFromForm()
+      setPreview({ request, result: await previewPayment(request) })
+    } catch (e) {
+      setError(errorMessage(e, 'Could not preview the payment'))
+    } finally {
+      setPreviewing(false)
+    }
+  }
+
+  async function handleExecute() {
+    if (submitting || !preview) return
     setSubmitting(true)
     setError(null)
     try {
-      await createPayment({
-        destination: form.destination.trim(),
-        amount: form.amount.trim(),
-        tokenId: form.tokenId.trim() || undefined,
-        envelope: form.envelope || undefined,
-        memo: form.memo.trim() || undefined,
-      }, attemptKey)
+      await createPayment(preview.request, attemptKey)
+      setPreview(null)
       setForm(EMPTY_FORM)
       setCustomToken(false)
       setAttemptKey(crypto.randomUUID())
@@ -164,14 +198,14 @@ export default function PaymentsPage() {
       )}
 
       {showForm && (
-        <form className="panel payment-form" onSubmit={(e) => void handleSubmit(e)}>
+        <form className="panel payment-form" onSubmit={(e) => void handlePreview(e)}>
           <label>
             Destination account
             {status?.demoRecipientId && (
               <button
                 type="button"
                 className="text-button inline"
-                onClick={() => setForm({ ...form, destination: status.demoRecipientId ?? '' })}
+                onClick={() => updateForm({ ...form, destination: status.demoRecipientId ?? '' })}
               >
                 use demo recipient
               </button>
@@ -180,7 +214,7 @@ export default function PaymentsPage() {
               required
               placeholder="0.0.12345"
               value={form.destination}
-              onChange={(e) => setForm({ ...form, destination: e.target.value })}
+              onChange={(e) => updateForm({ ...form, destination: e.target.value })}
             />
           </label>
           <label>
@@ -190,7 +224,7 @@ export default function PaymentsPage() {
               inputMode="decimal"
               placeholder={form.tokenId ? '500 (smallest unit)' : '10 HBAR'}
               value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              onChange={(e) => updateForm({ ...form, amount: e.target.value })}
             />
           </label>
           <label>
@@ -200,7 +234,8 @@ export default function PaymentsPage() {
               onChange={(e) => {
                 const other = e.target.value === OTHER_TOKEN
                 setCustomToken(other)
-                setForm({ ...form, tokenId: other ? '' : e.target.value })
+                setPreview(null)
+                updateForm({ ...form, tokenId: other ? '' : e.target.value })
               }}
             >
               <option value="">HBAR</option>
@@ -216,7 +251,7 @@ export default function PaymentsPage() {
                 required
                 placeholder="0.0.67890"
                 value={form.tokenId}
-                onChange={(e) => setForm({ ...form, tokenId: e.target.value })}
+                onChange={(e) => updateForm({ ...form, tokenId: e.target.value })}
               />
             )}
           </label>
@@ -224,7 +259,7 @@ export default function PaymentsPage() {
             Envelope
             <select
               value={form.envelope}
-              onChange={(e) => setForm({ ...form, envelope: e.target.value })}
+              onChange={(e) => updateForm({ ...form, envelope: e.target.value })}
             >
               {ENVELOPES.map((env) => (
                 <option key={env} value={env}>
@@ -238,19 +273,28 @@ export default function PaymentsPage() {
             <input
               maxLength={100}
               value={form.memo}
-              onChange={(e) => setForm({ ...form, memo: e.target.value })}
+              onChange={(e) => updateForm({ ...form, memo: e.target.value })}
             />
           </label>
           <div className="form-actions">
             <button type="button" className="button secondary" onClick={() => setShowForm(false)}>
               Cancel
             </button>
-            <button type="submit" className="button primary" disabled={submitting}>
-              {submitting ? <Loader2 size={15} className="spin" /> : <ArrowLeftRight size={15} />}
-              Send payment
+            <button type="submit" className="button primary" disabled={previewing}>
+              {previewing ? <Loader2 size={15} className="spin" /> : <Eye size={15} />}
+              Preview
             </button>
           </div>
         </form>
+      )}
+
+      {showForm && preview && (
+        <PreviewPanel
+          preview={preview.result}
+          executing={submitting}
+          onExecute={() => void handleExecute()}
+          onCancel={() => setPreview(null)}
+        />
       )}
 
       <div className="section-label">
@@ -347,6 +391,127 @@ function PaymentRow({
           <span className={`anchor-badge ${STATUS_TONE[p.status]}`}>
             {p.status.replace('_', ' ')}
           </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const OUTCOME: Record<PaymentPreview['outcome'], { tone: 'ok' | 'warn' | 'danger'; title: string }> = {
+  READY: { tone: 'ok', title: 'Ready to send' },
+  NEEDS_APPROVAL: { tone: 'warn', title: 'Will wait for approval' },
+  BLOCKED: { tone: 'danger', title: 'Blocked by policy' },
+  LIKELY_TO_FAIL: { tone: 'danger', title: 'Hedera would refuse this transfer' },
+  SIMULATION: { tone: 'warn', title: 'Simulation mode' },
+}
+
+/**
+ * Shows what the backend returned and nothing else: the policy verdict as the policy gave it, and
+ * the ledger checks as the Mirror Node answered them.
+ */
+function PreviewPanel({
+  preview: p,
+  executing,
+  onExecute,
+  onCancel,
+}: {
+  preview: PaymentPreview
+  executing: boolean
+  onExecute: () => void
+  onCancel: () => void
+}) {
+  const look = OUTCOME[p.outcome]
+  const asset = p.tokenId ? p.symbol ?? p.tokenId : 'ℏ'
+  return (
+    <div className={`panel preview-panel ${look.tone}`}>
+      <div className="preview-head">
+        <div>
+          <p className="eyebrow">PREVIEW</p>
+          <h3>{look.title}</h3>
+          <span className="audit-meta">{p.summary}</span>
+        </div>
+        <div className="preview-amount">
+          <b>
+            {p.amount} {asset}
+          </b>
+          <span className="audit-meta">
+            {p.payerAccount ?? 'no account'} → {p.destination}
+          </span>
+        </div>
+      </div>
+
+      <div className="preview-grid">
+        <div>
+          <p className="eyebrow">BALANCE</p>
+          {p.balanceBefore ? (
+            <dl className="preview-balance">
+              <dt>Now</dt>
+              <dd>
+                {p.balanceBefore} {asset}
+              </dd>
+              <dt>After</dt>
+              <dd>{p.balanceAfter ? `${p.balanceAfter} ${asset}` : 'not enough to pay'}</dd>
+            </dl>
+          ) : (
+            <span className="audit-meta">Not available</span>
+          )}
+          {!p.tokenId && p.balanceAfter && (
+            <span className="audit-meta">Plus the network fee.</span>
+          )}
+        </div>
+
+        <div>
+          <p className="eyebrow">POLICY</p>
+          <div className="preview-policy">
+            <span className={`anchor-badge ${p.policy.verdict === 'ALLOW' ? 'ok' : p.policy.verdict === 'HOLD' ? 'pending' : 'failed'}`}>
+              {p.policy.verdict}
+            </span>
+            {p.policy.ruleId && <code>{p.policy.ruleId}</code>}
+          </div>
+          {p.policy.reason && <span className="audit-meta">{p.policy.reason}</span>}
+        </div>
+
+        <div>
+          <p className="eyebrow">LEDGER CHECKS</p>
+          <ul className="preview-checks">
+            {p.checks.map((c) => (
+              <li key={c.name} className={c.status.toLowerCase()}>
+                {c.status === 'PASS' ? (
+                  <Check size={13} />
+                ) : c.status === 'FAIL' ? (
+                  <XCircle size={13} />
+                ) : c.status === 'WARN' ? (
+                  <AlertTriangle size={13} />
+                ) : (
+                  <CircleHelp size={13} />
+                )}
+                <div>
+                  <b>{c.name}</b>
+                  <span>{c.detail}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <div className="preview-foot">
+        <span className="audit-meta">{p.note}</span>
+        <div className="form-actions">
+          <button type="button" className="button secondary" onClick={onCancel}>
+            Back
+          </button>
+          {p.outcome !== 'BLOCKED' && (
+            <button
+              type="button"
+              className={`button ${p.outcome === 'LIKELY_TO_FAIL' ? 'secondary danger' : 'primary'}`}
+              disabled={executing}
+              onClick={onExecute}
+            >
+              {executing ? <Loader2 size={15} className="spin" /> : <ArrowLeftRight size={15} />}
+              {p.outcome === 'LIKELY_TO_FAIL' ? 'Execute anyway (fee still charged)' : 'Execute'}
+            </button>
+          )}
         </div>
       </div>
     </div>

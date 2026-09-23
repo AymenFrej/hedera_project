@@ -58,6 +58,7 @@ request → policy (ALLOW / HOLD / DENY) → [human approval if HOLD] → Hedera
 |---|---|---|
 | `GET` | `/api/v1/payments` | list payments, newest first |
 | `GET` | `/api/v1/payments/{id}` | one payment |
+| `POST` | `/api/v1/payments/preview` | what executing would do: policy verdict + ledger checks; records and sends nothing |
 | `POST` | `/api/v1/payments` | check policy, then send or hold |
 | `POST` | `/api/v1/payments/{id}/approve` | send a held payment (`409` if it is not `AWAITING_APPROVAL`) |
 | `POST` | `/api/v1/payments/{id}/reject` | refuse a held payment |
@@ -80,6 +81,49 @@ retry after a network error) returns the payment already created instead of payi
 the key for a different payment is refused with `409`. The Payments page sends a new key per
 attempt, and `PaymentAgent` uses the agent `requestId`, so an orchestrator retry never pays twice.
 Requests without the header are not deduplicated.
+
+### Preview → Execute
+
+`POST /payments/preview` takes the same body as `POST /payments` and answers what executing it now
+would do. **Nothing is recorded, sent or audited, and it authorizes nothing**: Execute is a normal
+`POST /payments`, which asks the policy again and follows its new answer if it changed.
+
+Two kinds of information, kept apart:
+
+- `policy`: the verdict exactly as `PaymentPolicy` returned it (`verdict`, `ruleId`, `reason`).
+  Payments invents no rule. `PaymentPolicy.evaluate` must therefore be free of side effects.
+- `checks`: facts read from the Mirror Node, each `PASS`, `WARN`, `FAIL` or `UNKNOWN`: recipient
+  exists, token exists, recipient can receive the token (associated, or accepts automatic
+  associations: an unassociated account with `max_automatic_token_associations = -1` is *not* a
+  failure), and the paying account's balance.
+
+```json
+{
+  "outcome": "READY",
+  "summary": "Policy allows it and the ledger checks pass",
+  "payerAccount": "0.0.5239440", "destination": "0.0.10687139",
+  "amount": "5", "amountUnits": 5, "tokenId": "0.0.10687138", "symbol": "PAYTEST",
+  "balanceBefore": "999950", "balanceAfter": "999945",
+  "policy": { "verdict": "ALLOW", "ruleId": "policy.none", "reason": "no policy engine connected yet: payment not checked" },
+  "checks": [
+    { "name": "Recipient", "status": "PASS", "detail": "0.0.10687139 exists on testnet" },
+    { "name": "Token", "status": "PASS", "detail": "PAYTEST (0.0.10687138), 0 decimals" },
+    { "name": "Recipient can receive PAYTEST", "status": "PASS", "detail": "Associated with 0.0.10687138" },
+    { "name": "Balance", "status": "PASS", "detail": "999950 PAYTEST available" }
+  ],
+  "note": "Preview only: nothing was recorded or sent. Execute checks the policy again."
+}
+```
+
+| outcome | meaning |
+|---|---|
+| `BLOCKED` | policy DENY: no Hedera transaction would be created (the page offers no Execute) |
+| `LIKELY_TO_FAIL` | a ledger check says Hedera would refuse it, and the network fee would still be charged |
+| `NEEDS_APPROVAL` | policy HOLD: it would wait for a human before anything is sent |
+| `READY` | policy allows it and the ledger checks pass |
+| `SIMULATION` | no Hedera credentials: nothing to check, nothing would be transferred |
+
+`balanceAfter` is null when the balance is not enough; for HBAR the network fee comes on top.
 
 ### Verification: the Mirror Node is the source of truth
 

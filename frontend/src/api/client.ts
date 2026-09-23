@@ -93,6 +93,32 @@ export async function createPayment(
   })
 }
 
+/**
+ * What executing this payment would do: the policy verdict as returned, and ledger facts.
+ * Nothing is recorded or sent, and it authorizes nothing: executing asks the policy again.
+ */
+export async function previewPayment(body: CreatePaymentRequest): Promise<PaymentPreview> {
+  return request('/payments/preview', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export type PreviewOutcome = 'READY' | 'NEEDS_APPROVAL' | 'BLOCKED' | 'LIKELY_TO_FAIL' | 'SIMULATION'
+
+export type PaymentPreview = {
+  outcome: PreviewOutcome
+  summary: string
+  payerAccount: string | null
+  destination: string
+  amount: string
+  amountUnits: number
+  tokenId: string | null
+  symbol: string | null
+  balanceBefore: string | null
+  balanceAfter: string | null
+  policy: { verdict: 'ALLOW' | 'HOLD' | 'DENY'; ruleId: string | null; reason: string | null }
+  checks: { name: string; status: 'PASS' | 'WARN' | 'FAIL' | 'UNKNOWN'; detail: string }[]
+  note: string
+}
+
 export async function approvePayment(id: string): Promise<Payment> {
   return request(`/payments/${encodeURIComponent(id)}/approve`, { method: 'POST' })
 }

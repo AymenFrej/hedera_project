@@ -11,6 +11,10 @@ import com.hedera.agentplatform.payments.entity.PaymentEntity;
  */
 public interface PaymentPolicy {
 
+  /**
+   * Must be free of side effects: the payment preview calls it on a payment that is never saved or
+   * sent, and execution calls it again.
+   */
   PaymentPolicyDecision evaluate(PaymentEntity payment);
 
   enum Verdict {
