@@ -79,6 +79,27 @@ Verification response:
 testnet and answer `BUSY`; reading the proof back through a different channel than the one that
 wrote it is also what makes the verification worth something.
 
+### What the topic itself guarantees
+
+The audit topic is created with two permanent properties:
+
+| Property | Effect |
+|---|---|
+| **No admin key** | Nobody can delete the topic — including us. HCS messages can never be edited, but a topic *with* an admin key can be deleted by whoever holds it. |
+| **A submit key** | Only the platform can append. Without one, anyone on the network could post forged audit events into the topic. |
+
+Both are fixed at creation and cannot be changed afterwards, which is the point. A topic created
+without them cannot be repaired — create a new one.
+
+The application does not take this on faith: at startup it asks the Mirror Node what the configured
+topic actually looks like and logs a warning when a guarantee is missing. `AuditTopicHardeningLiveIT`
+asserts the same thing against the real network.
+
+```
+Audit topic 0.0.10684842 verified: no admin key (nobody can delete it)
+and a submit key (only this platform can append).
+```
+
 ### Attribution: who performed the action
 
 Audit events carry an actor. Two rules decide the design:

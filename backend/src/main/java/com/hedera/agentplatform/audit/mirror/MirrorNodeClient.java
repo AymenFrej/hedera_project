@@ -81,6 +81,46 @@ public class MirrorNodeClient {
     }
   }
 
+  /**
+   * Inspects a topic to see what it actually guarantees.
+   *
+   * <p>Absence of an admin key means nobody can delete the topic; presence of a submit key means
+   * only the key holder can append. Both are permanent once the topic is created.
+   *
+   * @return empty when the Mirror Node could not be reached or does not know this topic
+   */
+  public Optional<TopicGuarantees> inspectTopic(String baseUrl, String topicId) {
+    String url = "%s/api/v1/topics/%s".formatted(trimTrailingSlash(baseUrl), topicId);
+    try {
+      HttpRequest request =
+          HttpRequest.newBuilder(URI.create(url))
+              .timeout(Duration.ofSeconds(20))
+              .header("Accept", "application/json")
+              .GET()
+              .build();
+
+      HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+      if (response.statusCode() != 200) {
+        log.warn("Mirror Node returned HTTP {} for {}", response.statusCode(), url);
+        return Optional.empty();
+      }
+
+      JsonNode node = objectMapper.readTree(response.body());
+      return Optional.of(
+          new TopicGuarantees(
+              topicId,
+              node.path("admin_key").isMissingNode() || node.path("admin_key").isNull(),
+              !(node.path("submit_key").isMissingNode() || node.path("submit_key").isNull()),
+              node.path("deleted").asBoolean(false)));
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return Optional.empty();
+    } catch (Exception e) {
+      log.warn("Could not inspect topic {}: {}", topicId, e.getMessage());
+      return Optional.empty();
+    }
+  }
+
   private static String trimTrailingSlash(String value) {
     return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
   }

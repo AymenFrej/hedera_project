@@ -2,6 +2,7 @@ package com.hedera.agentplatform.audit.hedera;
 
 import com.hedera.agentplatform.shared.model.AuditEvent;
 import com.hedera.hashgraph.sdk.Client;
+import com.hedera.hashgraph.sdk.PublicKey;
 import com.hedera.hashgraph.sdk.TopicCreateTransaction;
 import com.hedera.hashgraph.sdk.TopicId;
 import com.hedera.hashgraph.sdk.TopicMessageSubmitTransaction;
@@ -31,12 +32,41 @@ public class HcsHederaAuditGateway implements HederaAuditGateway {
     this.topicId = topicId;
   }
 
-  /** Creates the audit topic. Called once at startup when no topic id is configured. */
+  /**
+   * Creates the audit topic. Called once at startup when no topic id is configured.
+   *
+   * <p>Two deliberate choices, both permanent once the topic exists:
+   *
+   * <ul>
+   *   <li><b>No admin key.</b> HCS messages can never be edited, but a topic that has an admin key
+   *       can be <i>deleted</i> by whoever holds it. Leaving it unset makes the topic
+   *       indestructible — including by us. It also means the settings below can never be changed
+   *       afterwards, which is the point.
+   *   <li><b>A submit key.</b> Without one, anyone on the network can post messages into the topic,
+   *       so an outsider could inject forged audit events. Setting it to the operator's public key
+   *       means only the platform can append to the trail.
+   * </ul>
+   *
+   * <p>Together: nobody can delete the trail, and nobody outside the platform can write to it.
+   */
   public static TopicId createTopic(Client client, String memo) throws Exception {
+    PublicKey submitKey = client.getOperatorPublicKey();
+    if (submitKey == null) {
+      throw new IllegalStateException("Cannot create the audit topic without an operator key");
+    }
+
     TransactionResponse response =
-        new TopicCreateTransaction().setTopicMemo(memo).execute(client, TIMEOUT);
+        new TopicCreateTransaction()
+            .setTopicMemo(memo)
+            // No .setAdminKey(...) on purpose: an immutable, undeletable topic.
+            .setSubmitKey(submitKey)
+            .execute(client, TIMEOUT);
+
     TopicId created = response.getReceipt(client, TIMEOUT).topicId;
-    log.info("Created HCS audit topic {} (pin it with hedera.audit-topic-id to reuse it)", created);
+    log.info(
+        "Created HCS audit topic {} without an admin key (nobody can delete it) and with a submit"
+            + " key (only this platform can append). Pin it with hedera.audit-topic-id to reuse it.",
+        created);
     return created;
   }
 
