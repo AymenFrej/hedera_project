@@ -1,6 +1,7 @@
 package com.hedera.agentplatform.payments.service;
 
 import com.hedera.agentplatform.audit.service.AuditService;
+import com.hedera.agentplatform.payments.dto.BalanceResponse;
 import com.hedera.agentplatform.payments.dto.CreatePaymentRequest;
 import com.hedera.agentplatform.payments.dto.PaymentResponse;
 import com.hedera.agentplatform.payments.dto.PaymentVerification;
@@ -9,6 +10,8 @@ import com.hedera.agentplatform.payments.entity.PaymentStatus;
 import com.hedera.agentplatform.payments.hedera.HederaPaymentGateway;
 import com.hedera.agentplatform.payments.hedera.HederaPaymentGateway.PaymentResult;
 import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient;
+import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.AccountBalances;
+import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.BalanceLookup;
 import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.MirrorLookup;
 import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.MirrorTransaction;
 import com.hedera.agentplatform.payments.policy.PaymentPolicy;
@@ -141,6 +144,53 @@ public class PaymentService {
 
   public PaymentResponse findById(String id) {
     return toResponse(require(id));
+  }
+
+  /** Balances of the account payments leave from, read from the Mirror Node. */
+  public BalanceResponse balance() {
+    String account = gateway.payerAccount();
+    if (account == null) {
+      return new BalanceResponse(
+          false,
+          "Simulation mode: no Hedera account is configured",
+          null,
+          null,
+          List.of(),
+          null,
+          null);
+    }
+    String explorer = "https://hashscan.io/%s/account/%s".formatted(properties.getNetwork(), account);
+    BalanceLookup lookup = mirrorClient.findBalances(account);
+    return switch (lookup.state()) {
+      case UNAVAILABLE ->
+          new BalanceResponse(
+              false, "Mirror Node could not be reached, try again", account, null, List.of(), null,
+              explorer);
+      case NOT_FOUND ->
+          new BalanceResponse(
+              false, "The Mirror Node does not know account " + account, account, null, List.of(),
+              null, explorer);
+      case FOUND -> {
+        AccountBalances b = lookup.balances();
+        BalanceResponse.Asset hbar =
+            new BalanceResponse.Asset(
+                null, "HBAR", "HBAR", HBAR_DECIMALS, b.tinybars(), decimal(b.tinybars(), HBAR_DECIMALS));
+        List<BalanceResponse.Asset> tokens =
+            b.tokens().stream()
+                .map(
+                    t ->
+                        new BalanceResponse.Asset(
+                            t.tokenId(),
+                            t.symbol(),
+                            t.name(),
+                            t.decimals(),
+                            t.balance(),
+                            decimal(t.balance(), t.decimals())))
+                .toList();
+        yield new BalanceResponse(
+            true, null, account, hbar, tokens, consensusInstant(b.timestamp()), explorer);
+      }
+    };
   }
 
   /** True when transfers really reach Hedera. */
@@ -370,6 +420,20 @@ public class PaymentService {
   private static String payerOf(PaymentEntity payment) {
     int at = payment.transactionId.indexOf('@');
     return at < 0 ? null : payment.transactionId.substring(0, at);
+  }
+
+  private static String decimal(long units, int decimals) {
+    return BigDecimal.valueOf(units, decimals).toPlainString();
+  }
+
+  /** Mirror Node timestamps are {@code seconds.nanos}. */
+  static Instant consensusInstant(String timestamp) {
+    if (timestamp == null || timestamp.isBlank()) {
+      return null;
+    }
+    String[] parts = timestamp.split("\\.");
+    long nanos = parts.length > 1 ? Long.parseLong((parts[1] + "000000000").substring(0, 9)) : 0;
+    return Instant.ofEpochSecond(Long.parseLong(parts[0]), nanos);
   }
 
   private static String hbar(long tinybars) {

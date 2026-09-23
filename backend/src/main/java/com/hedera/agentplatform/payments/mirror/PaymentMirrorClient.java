@@ -75,6 +75,73 @@ public class PaymentMirrorClient {
     }
   }
 
+  /**
+   * Current balances of an account: HBAR, and every token it is associated with (up to 100), with
+   * symbol and decimals so amounts can be shown as the user would write them.
+   */
+  public BalanceLookup findBalances(String accountId) {
+    String base = trimTrailingSlash(properties.getMirrorNodeUrl());
+    try {
+      HttpResponse<String> account = get(base + "/api/v1/accounts/" + accountId + "?transactions=false");
+      if (account.statusCode() == 404) {
+        return new BalanceLookup(LookupState.NOT_FOUND, null);
+      }
+      if (account.statusCode() != 200) {
+        log.warn("Mirror Node returned HTTP {} for account {}", account.statusCode(), accountId);
+        return new BalanceLookup(LookupState.UNAVAILABLE, null);
+      }
+      JsonNode balance = JSON.readTree(account.body()).path("balance");
+
+      HttpResponse<String> relations =
+          get(base + "/api/v1/accounts/" + accountId + "/tokens?limit=100");
+      if (relations.statusCode() != 200) {
+        log.warn("Mirror Node returned HTTP {} for tokens of {}", relations.statusCode(), accountId);
+        return new BalanceLookup(LookupState.UNAVAILABLE, null);
+      }
+      List<TokenHolding> tokens = new ArrayList<>();
+      for (JsonNode t : JSON.readTree(relations.body()).path("tokens")) {
+        String tokenId = t.path("token_id").asText();
+        JsonNode info = tokenInfo(base, tokenId);
+        tokens.add(
+            new TokenHolding(
+                tokenId,
+                info == null ? null : info.path("symbol").asText(null),
+                info == null ? null : info.path("name").asText(null),
+                info == null ? t.path("decimals").asInt(0) : info.path("decimals").asInt(0),
+                t.path("balance").asLong()));
+      }
+      return new BalanceLookup(
+          LookupState.FOUND,
+          new AccountBalances(
+              accountId,
+              balance.path("balance").asLong(),
+              balance.path("timestamp").asText(null),
+              tokens));
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return new BalanceLookup(LookupState.UNAVAILABLE, null);
+    } catch (Exception e) {
+      log.warn("Mirror Node balance lookup failed for {}: {}", accountId, e.getMessage());
+      return new BalanceLookup(LookupState.UNAVAILABLE, null);
+    }
+  }
+
+  /** Token name, symbol and decimals; null when the Mirror Node does not answer. */
+  private JsonNode tokenInfo(String base, String tokenId) throws Exception {
+    HttpResponse<String> response = get(base + "/api/v1/tokens/" + tokenId);
+    return response.statusCode() == 200 ? JSON.readTree(response.body()) : null;
+  }
+
+  private HttpResponse<String> get(String url) throws Exception {
+    HttpRequest request =
+        HttpRequest.newBuilder(URI.create(url))
+            .timeout(Duration.ofSeconds(20))
+            .header("Accept", "application/json")
+            .GET()
+            .build();
+    return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
   /** Mirror Node ids use dashes: {@code 0.0.5239440-1790194819-526000707}. */
   static String toMirrorId(String transactionId) {
     int at = transactionId.indexOf('@');
@@ -142,6 +209,19 @@ public class PaymentMirrorClient {
   }
 
   public record TokenTransfer(String tokenId, String account, long amount) {}
+
+  /**
+   * @param tinybars HBAR balance in tinybars
+   * @param timestamp consensus timestamp the balance was computed at, {@code seconds.nanos}
+   */
+  public record AccountBalances(
+      String accountId, long tinybars, String timestamp, List<TokenHolding> tokens) {}
+
+  /** @param balance in the token's smallest unit */
+  public record TokenHolding(
+      String tokenId, String symbol, String name, int decimals, long balance) {}
+
+  public record BalanceLookup(LookupState state, AccountBalances balances) {}
 
   public enum LookupState {
     FOUND,

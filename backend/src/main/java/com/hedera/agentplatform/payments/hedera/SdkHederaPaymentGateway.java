@@ -37,6 +37,11 @@ public class SdkHederaPaymentGateway implements HederaPaymentGateway {
   }
 
   @Override
+  public String payerAccount() {
+    return signer.payer(client).toString();
+  }
+
+  @Override
   public PaymentResult transferHbar(
       String transactionId, String destination, long tinybars, String memo) {
     AccountId source = signer.payer(client);

@@ -12,6 +12,11 @@ public class MockHederaPaymentGateway implements HederaPaymentGateway {
   }
 
   @Override
+  public String payerAccount() {
+    return null;
+  }
+
+  @Override
   public PaymentResult transferHbar(
       String transactionId, String destination, long tinybars, String memo) {
     return simulated();

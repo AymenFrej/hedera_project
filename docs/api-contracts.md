@@ -62,6 +62,7 @@ request → policy (ALLOW / HOLD / DENY) → [human approval if HOLD] → Hedera
 | `POST` | `/api/v1/payments/{id}/approve` | send a held payment (`409` if it is not `AWAITING_APPROVAL`) |
 | `POST` | `/api/v1/payments/{id}/reject` | refuse a held payment |
 | `GET` | `/api/v1/payments/{id}/verification` | read the transfer back from the Mirror Node and compare it field by field |
+| `GET` | `/api/v1/payments/balance` | balances of the paying account (HBAR + associated tokens), from the Mirror Node |
 | `GET` | `/api/v1/payments/status` | `{ "ledgerActive": true }` when transfers really reach Hedera |
 
 `POST /api/v1/payments` body. Omit `tokenId` for HBAR. HBAR amounts accept up to 8 decimals
@@ -106,6 +107,28 @@ the Mirror Node and compares result, recipient and sender with the record:
   it, `FAILED` ("never reached consensus") if it does not. The same runs at startup for payments
   left `SUBMITTED` before a restart. Nothing is concluded while the Mirror Node is unreachable.
   Each settlement is audited as `TRANSFER_SETTLED`.
+
+### Balance
+
+Facts only, no limits or verdicts: the policy decides what a balance means. Each asset carries
+both the smallest unit (`units`, what the policy engine compares) and the decimal `amount` (what a
+person reads). `available` is false in simulation mode or when the Mirror Node is unreachable, with
+`detail` saying which.
+
+```json
+{
+  "available": true,
+  "detail": null,
+  "account": "0.0.5239440",
+  "hbar": { "tokenId": null, "symbol": "HBAR", "name": "HBAR", "decimals": 8, "units": 99967250794, "amount": "999.67250794" },
+  "tokens": [ { "tokenId": "0.0.7777", "symbol": "USDC", "name": "USD Coin", "decimals": 6, "units": 5000000, "amount": "5.000000" } ],
+  "asOf": "2026-09-23T20:37:16.839746104Z",
+  "explorerUrl": "https://hashscan.io/testnet/account/0.0.5239440"
+}
+```
+
+The account is whichever one payments leave from (`PaymentSigner.payer`), so it becomes the
+signed-in user's wallet once Accounts provides a signer.
 
 For an HTS transfer the recipient must already be **associated** with the token, otherwise Hedera
 answers `TOKEN_NOT_ASSOCIATED_TO_ACCOUNT` and the payment ends `FAILED`.

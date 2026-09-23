@@ -1,5 +1,6 @@
 package com.hedera.agentplatform.payments.controller;
 
+import com.hedera.agentplatform.payments.dto.BalanceResponse;
 import com.hedera.agentplatform.payments.dto.CreatePaymentRequest;
 import com.hedera.agentplatform.payments.dto.PaymentResponse;
 import com.hedera.agentplatform.payments.dto.PaymentVerification;
@@ -44,6 +45,12 @@ public class PaymentController {
   @PostMapping("/{id}/reject")
   public PaymentResponse reject(@PathVariable String id) {
     return service.reject(id);
+  }
+
+  /** Balances of the account payments leave from, from the Mirror Node. Facts only. */
+  @GetMapping("/balance")
+  public BalanceResponse balance() {
+    return service.balance();
   }
 
   /** Reads the transfer back from the Mirror Node and compares it with the payment. */

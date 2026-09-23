@@ -18,6 +18,9 @@ public interface HederaPaymentGateway {
    */
   String newTransactionId();
 
+  /** Account payments currently leave from; null for the mock, which has none. */
+  String payerAccount();
+
   PaymentResult transferHbar(String transactionId, String destination, long tinybars, String memo);
 
   PaymentResult transferToken(
