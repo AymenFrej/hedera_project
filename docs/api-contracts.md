@@ -1,7 +1,7 @@
 # API contracts
 
-Most endpoints are still GET-only placeholders returning mock records. The audit module is the
-exception: it writes to Hedera and can prove it. IDs are stable-shaped strings so clients can be
+Most endpoints are still GET-only placeholders returning mock records. The audit and payments
+modules are the exceptions: they write to Hedera. IDs are stable-shaped strings so clients can be
 built before persistence is complete.
 
 ## Account
@@ -12,9 +12,103 @@ built before persistence is complete.
 
 ## Payment
 
-```json
-{ "id": "pay_123", "amount": "50", "currency": "HBAR", "destination": "0.0.123", "status": "CONFIRMED" }
+Every payment goes through the same path, whether it comes from the UI or from `PaymentAgent`:
+
 ```
+request → policy (ALLOW / HOLD / DENY) → [human approval if HOLD] → Hedera transfer → audit (HCS)
+```
+
+| Status | Meaning |
+|---|---|
+| `PENDING` | recorded, not yet checked |
+| `AWAITING_APPROVAL` | policy said HOLD; waits for `approve` or `reject` |
+| `REJECTED` | policy said DENY, or a human rejected it; nothing was sent |
+| `SUBMITTED` | sent to Hedera, receipt not back yet |
+| `CONFIRMED` | Hedera accepted the transfer |
+| `FAILED` | Hedera refused it; `failureReason` holds the receipt status |
+| `SIMULATED` | no Hedera credentials: policy and audit ran, nothing was transferred |
+
+```json
+{
+  "id": "pay_7b1e…",
+  "amount": "12.5",
+  "currency": "HBAR",
+  "tokenId": null,
+  "destination": "0.0.4242",
+  "envelope": "ESSENTIALS",
+  "memo": "rent share",
+  "status": "CONFIRMED",
+  "sourceAccount": "0.0.10682427",
+  "transactionId": "0.0.10682427@1790178255.012000185",
+  "explorerUrl": "https://hashscan.io/testnet/transaction/0.0.10682427@1790178255.012000185",
+  "policyVerdict": "ALLOW",
+  "policyRuleId": "policy.ok",
+  "policyReason": "within essentials envelope and under limits",
+  "failureReason": null,
+  "requestedByType": "SYSTEM",
+  "requestedById": "platform",
+  "createdAt": "2026-09-23T19:30:00Z",
+  "updatedAt": "2026-09-23T19:30:04Z"
+}
+```
+
+### Payment routes
+
+| Method | Route | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/payments` | list payments, newest first |
+| `GET` | `/api/v1/payments/{id}` | one payment |
+| `POST` | `/api/v1/payments` | check policy, then send or hold |
+| `POST` | `/api/v1/payments/{id}/approve` | send a held payment (`409` if it is not `AWAITING_APPROVAL`) |
+| `POST` | `/api/v1/payments/{id}/reject` | refuse a held payment |
+| `GET` | `/api/v1/payments/status` | `{ "ledgerActive": true }` when transfers really reach Hedera |
+
+`POST /api/v1/payments` body. Omit `tokenId` for HBAR. HBAR amounts accept up to 8 decimals
+(1 tinybar); token amounts are in the token's **smallest unit** and must be whole numbers.
+
+```json
+{ "destination": "0.0.4242", "amount": "12.5", "tokenId": null, "envelope": "ESSENTIALS", "memo": "rent share" }
+```
+
+Like audit, the request has no "who" field: the requester comes from `ActorResolver`.
+
+For an HTS transfer the recipient must already be **associated** with the token, otherwise Hedera
+answers `TOKEN_NOT_ASSOCIATED_TO_ACCOUNT` and the payment ends `FAILED`.
+
+### Audit events written by Payments
+
+| action | status | when |
+|---|---|---|
+| `PAYMENT_POLICY` | `ALLOW` / `HOLD` / `DENY` | right after the policy decision |
+| `PAYMENT_APPROVAL` | `APPROVED` / `REJECTED` | a human decided on a held payment |
+| `TRANSFER` | `SUCCESS` / `FAILED` | after the Hedera receipt |
+
+Metadata carries `paymentId`, `amount`, `currency`, `destination`, and when known `envelope`,
+`policyRuleId`, `transactionId`, `failureReason`.
+
+### Extension points for other modules
+
+Both follow the `ActorResolver` pattern: declare a bean and it replaces the default.
+
+**Policies — `PaymentPolicy`.** Until one exists, `NoPolicyConfigured` allows everything and says so
+with rule id `policy.none`. An adapter to the policy engine is a few lines:
+
+```java
+@Component
+class EnginePaymentPolicy implements PaymentPolicy {
+  public PaymentPolicyDecision evaluate(PaymentEntity p) {
+    PolicyDecision d = PolicyEngine.decide(
+        new PolicyRequest(Envelope.valueOf(p.envelope), p.amountUnits, p.destination),
+        /* balances + known counterparties */ state());
+    return new PaymentPolicyDecision(Verdict.valueOf(d.verdict().name()), d.ruleId(), d.reason());
+  }
+}
+```
+
+**Accounts — `PaymentSigner`.** Until one exists, `OperatorPaymentSigner` sends from the platform
+operator. A custodial signer returns the signed-in user's account from `payer(...)` and, in
+`prepare(...)`, sets the transaction id to that account, freezes the transaction and signs it with
+the user's key. Audit messages are not affected: they stay platform-signed.
 
 ## Agent task
 
