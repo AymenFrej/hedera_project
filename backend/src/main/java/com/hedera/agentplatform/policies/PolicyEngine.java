@@ -22,6 +22,11 @@ public final class PolicyEngine {
   private static final double RENT_SHARE = 0.5;
   private static final double ESSENTIALS_SHARE = 0.3;
 
+  /**
+   * Spending more than this fraction of an envelope's remaining balance in one move needs a human.
+   */
+  private static final double SINGLE_MOVE_HOLD_RATIO = 0.5;
+
   private PolicyEngine() {}
 
   /**
@@ -41,5 +46,84 @@ public final class PolicyEngine {
     envelopes.put(Envelope.ESSENTIALS, essentials);
     envelopes.put(Envelope.EMERGENCY, total - rent - essentials);
     return Map.copyOf(envelopes);
+  }
+
+  /**
+   * Settle a spend request. Pure: the state passed in is never mutated.
+   *
+   * <p>Ordering is the rule, not an implementation detail. Every DENY is checked before every HOLD,
+   * so a decision that cannot settle is never put in front of a human to approve.
+   */
+  public static PolicyDecision decide(PolicyRequest request, PolicyState state) {
+    Envelope envelope = request.envelope();
+    long amount = request.amount();
+
+    if (envelope == null) {
+      return new PolicyDecision(
+          Verdict.DENY, "envelope.unknown", "no envelope named in the request", request, null);
+    }
+    if (amount <= 0) {
+      return new PolicyDecision(
+          Verdict.DENY,
+          "amount.invalid",
+          "amount must be a positive integer, got " + amount,
+          request,
+          null);
+    }
+    Long balance = state.balances().get(envelope);
+    if (balance == null) {
+      return new PolicyDecision(
+          Verdict.DENY,
+          "envelope.unfunded",
+          "envelope \"" + name(envelope) + "\" is not funded",
+          request,
+          null);
+    }
+    if (amount > balance) {
+      return new PolicyDecision(
+          Verdict.DENY,
+          "funds.insufficient",
+          "requested " + amount + " but " + name(envelope) + " holds " + balance,
+          request,
+          null);
+    }
+
+    long balanceAfter = balance - amount;
+
+    if (envelope == Envelope.EMERGENCY) {
+      return new PolicyDecision(
+          Verdict.HOLD,
+          "emergency.human",
+          "emergency funds always require human approval",
+          request,
+          balanceAfter);
+    }
+    if (!state.knownCounterparties().contains(request.counterparty())) {
+      return new PolicyDecision(
+          Verdict.HOLD,
+          "counterparty.unknown",
+          "first transfer to " + request.counterparty(),
+          request,
+          balanceAfter);
+    }
+    if (amount > balance * SINGLE_MOVE_HOLD_RATIO) {
+      return new PolicyDecision(
+          Verdict.HOLD,
+          "amount.large",
+          amount + " exceeds 50% of the remaining " + name(envelope) + " envelope",
+          request,
+          balanceAfter);
+    }
+
+    return new PolicyDecision(
+        Verdict.ALLOW,
+        "policy.ok",
+        "within " + name(envelope) + " envelope and under limits",
+        request,
+        balanceAfter);
+  }
+
+  private static String name(Envelope envelope) {
+    return envelope.name().toLowerCase(java.util.Locale.ROOT);
   }
 }
