@@ -63,6 +63,39 @@ export type RecordAuditEventRequest = {
   metadata?: Record<string, string>
 }
 
+/** The demo budget the policy engine decides against. */
+export async function getPolicyState(): Promise<PolicyStateResponse> {
+  return request('/policies/state')
+}
+
+/** Submits a spend to the deterministic rule engine. Never decides client-side. */
+export async function decideSpend(body: DecideRequest): Promise<DecideResponse> {
+  return request('/policies/decide', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export type PolicyStateResponse = {
+  envelopes: Record<string, number>
+  knownCounterparties: string[]
+}
+
+export type DecideRequest = {
+  envelope: string
+  amount: number
+  counterparty: string
+}
+
+export type Verdict = 'ALLOW' | 'HOLD' | 'DENY'
+
+export type DecideResponse = {
+  verdict: Verdict
+  /** Stable rule identifier, e.g. "amount.large". Survives rewording of the reason. */
+  ruleId: string
+  reason: string
+  balanceAfter: number | null
+  /** Present only for HOLD: the handle a human uses to settle the request. */
+  approvalId: string | null
+}
+
 export type VerificationResult = {
   verified: boolean
   detail: string
