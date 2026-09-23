@@ -4,6 +4,8 @@ import com.hedera.agentplatform.accounts.auth.AuthSessionService;
 import com.hedera.agentplatform.accounts.dto.AccountResponse;
 import com.hedera.agentplatform.accounts.dto.AuthRequest;
 import com.hedera.agentplatform.accounts.dto.AuthResponse;
+import com.hedera.agentplatform.accounts.dto.PasswordChangeRequest;
+import com.hedera.agentplatform.accounts.dto.ProfileUpdateRequest;
 import com.hedera.agentplatform.accounts.entity.AccountEntity;
 import com.hedera.agentplatform.accounts.entity.UserEntity;
 import com.hedera.agentplatform.accounts.hedera.HederaAccountGateway;
@@ -55,6 +57,33 @@ public class AuthService {
     }
 
     public String startSession(AuthResponse response) { return response.token(); }
+
+    @Transactional
+    public AuthResponse updateProfile(String authorization, ProfileUpdateRequest request) {
+        UserEntity user = sessions.require(authorization);
+        if (request == null || request.email() == null || !request.email().contains("@") || request.displayName() == null || request.displayName().isBlank())
+            throw new IllegalArgumentException("A valid email and display name are required");
+        users.findByEmailIgnoreCase(request.email()).filter(other -> !other.id.equals(user.id)).ifPresent(other -> { throw new IllegalArgumentException("Email already registered"); });
+        user.email = request.email().trim().toLowerCase(); user.displayName = request.displayName().trim(); users.save(user);
+        AccountEntity account = accounts.findById(user.accountId).orElseThrow(); account.email = user.email; accounts.save(account);
+        return response(user, account);
+    }
+
+    @Transactional
+    public void changePassword(String authorization, PasswordChangeRequest request) {
+        UserEntity user = sessions.require(authorization);
+        if (request == null || request.currentPassword() == null || !hash(request.currentPassword()).equals(user.passwordHash)) throw new IllegalArgumentException("Current password is incorrect");
+        if (request.newPassword() == null || request.newPassword().length() < 8) throw new IllegalArgumentException("New password must be at least 8 characters");
+        user.passwordHash = hash(request.newPassword()); users.save(user);
+    }
+
+    public void logout(String authorization) { sessions.invalidate(authorization); }
+
+    @Transactional
+    public void deleteAccount(String authorization) {
+        UserEntity user = sessions.require(authorization);
+        accounts.deleteById(user.accountId); users.deleteById(user.id); sessions.invalidateUser(user);
+    }
 
     private AuthResponse response(UserEntity user, AccountEntity account) {
         String token = sessions.create(user);

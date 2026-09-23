@@ -17,6 +17,10 @@ export function getAuthToken(): string | null { return localStorage.getItem('hed
 export function setAuthToken(token: string, user?: unknown): void { localStorage.setItem('hedera.auth.token', token); if (user) localStorage.setItem('hedera.auth.user', JSON.stringify(user)) }
 export function clearAuthToken(): void { localStorage.removeItem('hedera.auth.token'); localStorage.removeItem('hedera.auth.user') }
 export function getAuthUser<T = { role: string; displayName: string; email: string }>(): T | null { const value = localStorage.getItem('hedera.auth.user'); return value ? JSON.parse(value) as T : null }
+export async function updateProfile(email: string, displayName: string) { const result = await request<any>('/auth/me/profile', { method: 'PUT', body: JSON.stringify({ email, displayName }) }); setAuthToken(result.token, result); return result }
+export async function changePassword(currentPassword: string, newPassword: string) { return request<void>('/auth/me/password', { method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }) }) }
+export async function logout() { try { await request<void>('/auth/logout', { method: 'POST' }) } finally { clearAuthToken() } }
+export async function deleteAccount() { try { await request<void>('/auth/me', { method: 'DELETE' }) } finally { clearAuthToken() } }
 
 export async function getHealth(): Promise<{ status: string }> {
   return request('/health')

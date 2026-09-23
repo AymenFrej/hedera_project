@@ -25,4 +25,10 @@ public class AuthSessionService {
         if (user == null) throw new IllegalArgumentException("Invalid session");
         return user;
     }
+
+    public void invalidate(String authorization) {
+        if (authorization != null && authorization.startsWith("Bearer ")) sessions.remove(authorization.substring("Bearer ".length()).trim());
+    }
+
+    public void invalidateUser(UserEntity user) { sessions.entrySet().removeIf(entry -> entry.getValue().id.equals(user.id)); }
 }
