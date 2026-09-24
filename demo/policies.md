@@ -110,8 +110,8 @@ before seeing it applied rather than inferring it from one verdict after.
 ## Two questions a judge asks
 
 **"Could the model have talked its way past that?"** The verdict never passes through a model.
-`PolicyEngine.decide` is a pure static function; the 91-test backend suite runs it offline with no
-network and no SDK.
+`PolicyEngine.decide` is a pure static function; the backend suite runs it offline with no
+network and no SDK (`cd backend && ./mvnw test`).
 
 **"What if I run the demo twice?"** **Reset the demo** puts the envelopes back and clears the
 queue. It deliberately does *not* touch the audit trail — a history you can wipe proves nothing, so
