@@ -9,11 +9,14 @@ import type { PolicyExplanation } from '../../api/client'
 export default function PolicyProtection({
   why,
   asset,
+  countsAgainstEnvelope = true,
   whenNotSent,
 }: {
   why: PolicyExplanation
   /** How to write the asset after an amount, e.g. "ℏ" or "PAYTEST". */
   asset: string
+  /** false for a token: envelopes are an HBAR budget, so no envelope balance applies to it. */
+  countsAgainstEnvelope?: boolean
   /** Shown when no Hedera transaction exists: "was not created" or "will not be created". */
   whenNotSent?: string
 }) {
@@ -40,7 +43,13 @@ export default function PolicyProtection({
         {why.envelope && (
           <>
             <dt>{`In ${why.envelope.toLowerCase()} at decision`}</dt>
-            <dd>{why.available !== null ? `${why.available} ${asset}` : 'not funded'}</dd>
+            <dd>
+              {!countsAgainstEnvelope
+                ? 'not counted: envelopes are a budget in HBAR'
+                : why.available !== null
+                  ? `${why.available} ${asset}`
+                  : 'not funded'}
+            </dd>
           </>
         )}
         {why.shortfall && (
