@@ -53,7 +53,8 @@ public class PolicyController {
   public DecideResponse decide(@RequestBody DecideRequest body) {
     ApprovalService.Submission submission =
         approvals.submit(
-            new PolicyRequest(envelopeOf(body.envelope()), body.amount(), body.counterparty()),
+            new PolicyRequest(
+                envelopeOf(body.envelope()), body.envelope(), body.amount(), body.counterparty()),
             ledger.state());
     return new DecideResponse(
         submission.decision().verdict().name(),

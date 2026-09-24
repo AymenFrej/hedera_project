@@ -17,7 +17,7 @@ public final class Rulebook {
           new Rule(
               "envelope.unknown",
               Verdict.DENY,
-              "the request names no envelope, so there is no budget to spend from"),
+              "the request names no envelope, or names one that does not exist"),
           new Rule("amount.invalid", Verdict.DENY, "the amount must be a positive whole number"),
           new Rule(
               "counterparty.missing",
