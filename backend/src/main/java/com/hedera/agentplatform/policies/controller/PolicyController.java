@@ -28,8 +28,8 @@ public class PolicyController {
   }
 
   @GetMapping
-  public List<PolicyResponse> findAll() {
-    return service.findAll();
+  public List<RuleResponse> rulebook() {
+    return service.rulebook();
   }
 
   @GetMapping("/state")
