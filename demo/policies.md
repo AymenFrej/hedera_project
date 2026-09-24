@@ -57,7 +57,7 @@ the usual reason the pages look empty.)
 | 1 | Spend **100** from **RENT** to `landlord-tunis` | Green **ALLOWED**, rule `policy.ok`. The rent card drops 500 → 400 on the spot |
 | 2 | Spend **9999** from **RENT** to `landlord-tunis` | Red **DENIED**, rule `funds.insufficient`, *"requested 9999 but rent holds 400"*. No approval is created |
 | 3 | Spend **50** from **EMERGENCY** to `landlord-tunis` | Amber **HELD FOR A HUMAN**, rule `emergency.human`. An approval id appears — the same counterparty that was waved through in step 1 |
-| 4 | Open `/approvals`, click **Approve** | The row becomes `APPROVED by platform`. Back on `/policies`, emergency reads 150 |
+| 4 | Open `/approvals`, click **Approve** | The row becomes `APPROVED by admin_demo` — the signed-in human, named. Back on `/policies`, emergency reads 150 |
 | 5 | Click **Approve** on that same row again | `409` — *"was already approved"*. A question gets answered once |
 
 Step 2 is the one to slow down on: the same human who approves step 3 is given **no button** in

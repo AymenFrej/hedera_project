@@ -50,4 +50,20 @@ class DemoScriptAuthTest {
 
         assertThat(text).containsAnyOf("admin@example.com", "platform@example.com");
     }
+
+    /**
+     * The approvals row renders "{status} by {decidedBy}", and decidedBy is the username resolved
+     * from the session. The walkthrough logs in as admin@example.com, seeded in V7 as admin_demo,
+     * so any other approver name in the document describes a run nobody is told how to perform.
+     */
+    @Test
+    void theWalkthroughNamesTheApproverItsOwnLoginProduces() throws IOException {
+        String text = String.join("\n", lines());
+
+        assertThat(text).contains("admin@example.com");
+        assertThat(lines().stream().filter(line -> line.contains("APPROVED by")).toList())
+                .as("approver named in demo/policies.md for the documented admin login")
+                .isNotEmpty()
+                .allMatch(line -> line.contains("APPROVED by admin_demo"));
+    }
 }
