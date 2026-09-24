@@ -65,6 +65,310 @@ export async function verifyAuditEvent(id: string): Promise<VerificationResult> 
   return request(`/audit/${encodeURIComponent(id)}/verification`)
 }
 
+export type PaymentsStatus = {
+  /** Whether payments really reach Hedera, or are only simulated. */
+  ledgerActive: boolean
+  /** Demo HTS token and a recipient already associated with it, when configured. */
+  demoTokenId: string | null
+  demoRecipientId: string | null
+}
+
+export async function getPaymentStatus(): Promise<PaymentsStatus> {
+  return request('/payments/status')
+}
+
+/** Balances of the paying account, from the Mirror Node. Facts only. */
+export async function getPaymentBalance(): Promise<Balance> {
+  return request('/payments/balance')
+}
+
+export type BalanceAsset = {
+  tokenId: string | null
+  symbol: string | null
+  name: string | null
+  decimals: number
+  /** Smallest unit: tinybars, or the token's smallest unit. */
+  units: number
+  /** Same balance as a decimal string. */
+  amount: string
+}
+
+export type Balance = {
+  available: boolean
+  detail: string | null
+  account: string | null
+  hbar: BalanceAsset | null
+  tokens: BalanceAsset[]
+  asOf: string | null
+  explorerUrl: string | null
+}
+
+export async function listPayments(): Promise<Payment[]> {
+  return request('/payments')
+}
+
+/**
+ * Checks the policy, then sends the transfer or holds it for approval.
+ *
+ * `idempotencyKey` identifies one payment attempt: sending it again (double click, retry after a
+ * network error) returns the payment already created instead of paying twice.
+ */
+export async function createPayment(
+  body: CreatePaymentRequest,
+  idempotencyKey: string,
+): Promise<Payment> {
+  return request('/payments', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: { 'Idempotency-Key': idempotencyKey },
+  })
+}
+
+/**
+ * What executing this payment would do: the policy verdict as returned, and ledger facts.
+ * Nothing is recorded or sent, and it authorizes nothing: executing asks the policy again.
+ */
+export async function previewPayment(body: CreatePaymentRequest): Promise<PaymentPreview> {
+  return request('/payments/preview', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export type PreviewOutcome = 'READY' | 'NEEDS_APPROVAL' | 'BLOCKED' | 'LIKELY_TO_FAIL' | 'SIMULATION'
+
+export type PaymentPreview = {
+  outcome: PreviewOutcome
+  summary: string
+  payerAccount: string | null
+  destination: string
+  amount: string
+  amountUnits: number
+  tokenId: string | null
+  symbol: string | null
+  balanceBefore: string | null
+  balanceAfter: string | null
+  policy: {
+    verdict: 'ALLOW' | 'HOLD' | 'DENY'
+    ruleId: string | null
+    reason: string | null
+    /** What the envelope holds now; null without an envelope. */
+    available: string | null
+    /** How much more than `available` is asked; null when it fits. */
+    shortfall: string | null
+  }
+  checks: { name: string; status: 'PASS' | 'WARN' | 'FAIL' | 'UNKNOWN'; detail: string }[]
+  note: string
+}
+
+/** Everything the result screen shows, each part from something that actually happened. */
+export async function getPaymentResult(id: string): Promise<PaymentReceipt> {
+  return request(`/payments/${encodeURIComponent(id)}/result`)
+}
+
+/** Reads one of the payment's audit events back from HCS. */
+export async function verifyPaymentAuditEvent(
+  paymentId: string,
+  eventId: string,
+): Promise<VerificationResult> {
+  return request(
+    `/payments/${encodeURIComponent(paymentId)}/audit/${encodeURIComponent(eventId)}/verification`,
+  )
+}
+
+export type ReceiptOutcome =
+  | 'CONFIRMED'
+  | 'FAILED'
+  | 'BLOCKED'
+  | 'REJECTED'
+  | 'AWAITING_APPROVAL'
+  | 'IN_PROGRESS'
+  | 'SIMULATED'
+  | 'CONDITION_NOT_MET'
+
+export type ReceiptStep = {
+  label: string
+  state: 'DONE' | 'FAILED' | 'WAITING' | 'NOT_CREATED'
+  at: string | null
+  detail: string | null
+  auditEventId: string | null
+}
+
+export type AuditProof = {
+  id: string
+  action: string
+  status: string
+  createdAt: string | null
+  anchorStatus: AnchorStatus
+  topicId: string | null
+  sequenceNumber: number | null
+  /** true only when read back from HCS with a matching hash; null when never anchored. */
+  verified: boolean | null
+  verificationDetail: string | null
+  explorerUrl: string | null
+}
+
+export type LedgerCheck = { name: string; expected: string; actual: string; ok: boolean }
+
+export type PaymentVerification = {
+  verified: boolean
+  detail: string
+  paymentStatus: PaymentStatus
+  transactionId: string | null
+  ledgerResult: string | null
+  consensusTimestamp: string | null
+  checks: LedgerCheck[]
+  explorerUrl: string | null
+}
+
+/** One line of the safety summary, from a fact the backend holds or just checked. */
+export type SafetyRow = {
+  name: string
+  state: 'PASS' | 'FAIL' | 'WAITING' | 'NOT_APPLICABLE' | 'UNKNOWN'
+  detail: string
+}
+
+export type PaymentReceipt = {
+  payment: Payment
+  outcome: ReceiptOutcome
+  headline: string
+  detail: string
+  onLedger: boolean
+  ledger: PaymentVerification | null
+  timeline: ReceiptStep[]
+  audit: AuditProof[]
+  /** Only facts a backend check just confirmed. */
+  badges: { policyChecked: boolean; ledgerVerified: boolean; auditVerified: boolean }
+  safety: SafetyRow[]
+  network: string
+}
+
+export async function approvePayment(id: string): Promise<Payment> {
+  return request(`/payments/${encodeURIComponent(id)}/approve`, { method: 'POST' })
+}
+
+export async function rejectPayment(id: string): Promise<Payment> {
+  return request(`/payments/${encodeURIComponent(id)}/reject`, { method: 'POST' })
+}
+
+/** Why the policy decided, with the numbers it decided on. Comes from the backend as is. */
+/** A name someone can be paid by, tied to one Hedera account. */
+export type Contact = { id: string; name: string; accountId: string }
+
+export async function listContacts(): Promise<Contact[]> {
+  return request('/payments/contacts')
+}
+
+export async function addContact(name: string, accountId: string): Promise<Contact> {
+  return request('/payments/contacts', { method: 'POST', body: JSON.stringify({ name, accountId }) })
+}
+
+export async function deleteContact(id: string): Promise<void> {
+  return request(`/payments/contacts/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+/**
+ * What someone wants to pay, before anything is resolved: the contract the future orchestrator
+ * will produce from free text.
+ */
+export type PaymentIntent = {
+  recipient: string
+  amount: string
+  asset: string | null
+  envelope: string | null
+  memo: string | null
+  keepAtLeast: string | null
+}
+
+export type IntentUnderstanding = {
+  understood: boolean
+  request: CreatePaymentRequest | null
+  recipientName: string | null
+  assetSymbol: string | null
+  steps: { field: string; input: string; value: string | null; source: string }[]
+  problems: string[]
+}
+
+/** What became of a sentence: what the language model read, then what the application resolved. */
+export type SentenceInterpretation = {
+  /** false when no language model is configured on the backend. */
+  available: boolean
+  detail: string | null
+  /** The model that read the sentence. */
+  source: string | null
+  intent: PaymentIntent | null
+  clarification: string | null
+  understanding: IntentUnderstanding | null
+}
+
+/** The language model only proposes fields; the backend resolves and checks them like a form. */
+export async function interpretSentence(text: string): Promise<SentenceInterpretation> {
+  return request('/payments/intent/interpret', { method: 'POST', body: JSON.stringify({ text }) })
+}
+
+/** Resolves each field of an intent on the backend, with where each value came from. */
+export async function understandIntent(intent: PaymentIntent): Promise<IntentUnderstanding> {
+  return request('/payments/intent/understand', { method: 'POST', body: JSON.stringify(intent) })
+}
+
+export type PolicyExplanation = {
+  verdict: 'ALLOW' | 'HOLD' | 'DENY'
+  ruleId: string | null
+  reason: string | null
+  envelope: string | null
+  asset: string
+  requested: string | null
+  /** What the envelope held when the policy decided; null without an envelope. */
+  available: string | null
+  /** How much more than `available` was asked; null when it fitted. */
+  shortfall: string | null
+  transactionCreated: boolean
+}
+
+export type PaymentStatus =
+  | 'PENDING'
+  | 'AWAITING_APPROVAL'
+  | 'REJECTED'
+  | 'SUBMITTED'
+  | 'CONFIRMED'
+  | 'FAILED'
+  | 'SIMULATED'
+
+export type Payment = {
+  id: string
+  amount: string
+  /** "HBAR", or the HTS token id. */
+  currency: string
+  /** How a person writes it: "HBAR" or the token symbol (falls back to the token id). */
+  assetSymbol: string
+  tokenId: string | null
+  destination: string
+  envelope: string | null
+  memo: string | null
+  keepAtLeast: string | null
+  status: PaymentStatus
+  sourceAccount: string | null
+  transactionId: string | null
+  explorerUrl: string | null
+  policyVerdict: 'ALLOW' | 'HOLD' | 'DENY' | null
+  policyRuleId: string | null
+  policyReason: string | null
+  policyExplanation: PolicyExplanation | null
+  failureReason: string | null
+  /** Who asked for the payment. Resolved server-side, never sent by the client. */
+  requestedByType: 'USER' | 'AGENT' | 'SYSTEM' | null
+  requestedById: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export type CreatePaymentRequest = {
+  destination: string
+  amount: string
+  tokenId?: string
+  envelope?: string | null
+  memo?: string | null
+  /** The requester's own condition: refuse if less than this would remain. */
+  keepAtLeast?: string | null
+}
+
 export type AnchorStatus = 'PENDING' | 'ANCHORED' | 'FAILED'
 
 export type ActorType = 'USER' | 'AGENT' | 'SYSTEM'
