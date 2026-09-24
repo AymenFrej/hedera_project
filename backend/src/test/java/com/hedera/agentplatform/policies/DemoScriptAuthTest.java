@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.regex.MatchResult;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -52,18 +54,27 @@ class DemoScriptAuthTest {
     }
 
     /**
-     * The approvals row renders "{status} by {decidedBy}", and decidedBy is the username resolved
-     * from the session. The walkthrough logs in as admin@example.com, seeded in V7 as admin_demo,
-     * so any other approver name in the document describes a run nobody is told how to perform.
+     * decidedBy is the username resolved from the session, so the approvals row names whoever the
+     * walkthrough told the presenter to log in as. The walkthrough logs in as admin@example.com,
+     * seeded in V7 as admin_demo, so naming any other seeded demo user describes a run nobody is
+     * told how to perform. Matching the username rather than a whole sentence keeps a reworded
+     * walkthrough from reading as a regression.
      */
     @Test
     void theWalkthroughNamesTheApproverItsOwnLoginProduces() throws IOException {
         String text = String.join("\n", lines());
-
         assertThat(text).contains("admin@example.com");
-        assertThat(lines().stream().filter(line -> line.contains("APPROVED by")).toList())
-                .as("approver named in demo/policies.md for the documented admin login")
+
+        List<String> approversNamed = Pattern.compile("[a-z]+_demo")
+                .matcher(text)
+                .results()
+                .map(MatchResult::group)
+                .distinct()
+                .toList();
+
+        assertThat(approversNamed)
+                .as("demo usernames named in demo/policies.md for the documented admin login")
                 .isNotEmpty()
-                .allMatch(line -> line.contains("APPROVED by admin_demo"));
+                .containsExactly("admin_demo");
     }
 }
