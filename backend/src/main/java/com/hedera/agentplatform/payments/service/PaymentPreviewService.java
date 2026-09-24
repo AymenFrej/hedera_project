@@ -152,12 +152,31 @@ public class PaymentPreviewService {
       checks.add(new Check("Balance", UNKNOWN, "Mirror Node could not be reached"));
     }
 
+    boolean conditionBroken = false;
+    if (draft.keepAtLeast != null) {
+      if (balances.state() != LookupState.FOUND) {
+        checks.add(new Check("Your condition", UNKNOWN, "Mirror Node could not be reached"));
+      } else {
+        String broken = payments.unmetCondition(draft);
+        conditionBroken = broken != null;
+        checks.add(conditionBroken
+            ? new Check("Your condition", FAIL, broken + ": nothing would be sent")
+            : new Check("Your condition", PASS, "at least "
+                + draft.keepAtLeast.stripTrailingZeros().toPlainString() + " " + symbol
+                + " would remain" + (hbar ? " (before the network fee)" : "")));
+      }
+    }
+
     String outcome;
     String summary;
-    boolean refused = checks.stream().anyMatch(c -> FAIL.equals(c.status()));
+    boolean refused =
+        checks.stream().anyMatch(c -> FAIL.equals(c.status()) && !c.name().equals("Your condition"));
     if (decision.verdict() == Verdict.DENY) {
       outcome = "BLOCKED";
       summary = "Blocked by policy: no Hedera transaction would be created";
+    } else if (conditionBroken) {
+      outcome = "BLOCKED";
+      summary = "Your condition would not be met: no Hedera transaction would be created";
     } else if (refused) {
       outcome = "LIKELY_TO_FAIL";
       summary = "Hedera would refuse this transfer, and the network fee would still be charged";

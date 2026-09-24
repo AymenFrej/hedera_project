@@ -10,6 +10,7 @@ public record PaymentResponse(
     String destination,
     String envelope,
     String memo,
+    String keepAtLeast,
     String status,
     String sourceAccount,
     String transactionId,

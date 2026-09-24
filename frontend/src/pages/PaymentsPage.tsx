@@ -20,8 +20,10 @@ import {
   createPayment,
   getPaymentBalance,
   getPaymentStatus,
+  listContacts,
   listPayments,
   previewPayment,
+  type Contact,
   rejectPayment,
   type Balance,
   type CreatePaymentRequest,
@@ -31,6 +33,7 @@ import {
   type PaymentsStatus,
 } from '../api/client'
 import PaymentResultPanel from '../modules/payments/PaymentResultPanel'
+import IntentComposer from '../modules/payments/IntentComposer'
 
 const ENVELOPES = ['', 'RENT', 'ESSENTIALS', 'EMERGENCY']
 
@@ -64,6 +67,30 @@ export default function PaymentsPage() {
   const [previewing, setPreviewing] = useState(false)
   // The payment whose result is open; set after Execute, or from a row.
   const [resultId, setResultId] = useState<string | null>(null)
+  const [contacts, setContacts] = useState<Contact[]>([])
+
+  const loadContacts = useCallback(() => {
+    listContacts()
+      .then(setContacts)
+      .catch(() => setContacts([]))
+  }, [])
+
+  useEffect(() => {
+    loadContacts()
+  }, [loadContacts])
+
+  /** Preview a request that came from the intent card rather than the form. */
+  async function previewRequest(request: CreatePaymentRequest) {
+    setPreviewing(true)
+    setError(null)
+    try {
+      setPreview({ request, result: await previewPayment(request) })
+    } catch (e) {
+      setError(errorMessage(e, 'Could not preview the payment'))
+    } finally {
+      setPreviewing(false)
+    }
+  }
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
@@ -292,7 +319,15 @@ export default function PaymentsPage() {
         </form>
       )}
 
-      {showForm && preview && (
+      <IntentComposer
+        contacts={contacts}
+        assetSymbols={['HBAR', ...(balance?.tokens.map((t) => t.symbol ?? t.tokenId ?? '') ?? [])]}
+        onContactsChanged={loadContacts}
+        onPreview={(request) => void previewRequest(request)}
+        previewing={previewing}
+      />
+
+      {preview && (
         <PreviewPanel
           preview={preview.result}
           executing={submitting}

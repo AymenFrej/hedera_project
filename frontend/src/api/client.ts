@@ -157,6 +157,7 @@ export type ReceiptOutcome =
   | 'AWAITING_APPROVAL'
   | 'IN_PROGRESS'
   | 'SIMULATED'
+  | 'CONDITION_NOT_MET'
 
 export type ReceiptStep = {
   label: string
@@ -224,6 +225,51 @@ export async function rejectPayment(id: string): Promise<Payment> {
 }
 
 /** Why the policy decided, with the numbers it decided on. Comes from the backend as is. */
+/** A name someone can be paid by, tied to one Hedera account. */
+export type Contact = { id: string; name: string; accountId: string }
+
+export async function listContacts(): Promise<Contact[]> {
+  return request('/payments/contacts')
+}
+
+export async function addContact(name: string, accountId: string): Promise<Contact> {
+  return request('/payments/contacts', { method: 'POST', body: JSON.stringify({ name, accountId }) })
+}
+
+export async function deleteContact(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/payments/contacts/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok) throw new Error(await response.text())
+}
+
+/**
+ * What someone wants to pay, before anything is resolved: the contract the future orchestrator
+ * will produce from free text.
+ */
+export type PaymentIntent = {
+  recipient: string
+  amount: string
+  asset: string | null
+  envelope: string | null
+  memo: string | null
+  keepAtLeast: string | null
+}
+
+export type IntentUnderstanding = {
+  understood: boolean
+  request: CreatePaymentRequest | null
+  recipientName: string | null
+  assetSymbol: string | null
+  steps: { field: string; input: string; value: string | null; source: string }[]
+  problems: string[]
+}
+
+/** Resolves each field of an intent on the backend, with where each value came from. */
+export async function understandIntent(intent: PaymentIntent): Promise<IntentUnderstanding> {
+  return request('/payments/intent/understand', { method: 'POST', body: JSON.stringify(intent) })
+}
+
 export type PolicyExplanation = {
   verdict: 'ALLOW' | 'HOLD' | 'DENY'
   ruleId: string | null
@@ -256,6 +302,7 @@ export type Payment = {
   destination: string
   envelope: string | null
   memo: string | null
+  keepAtLeast: string | null
   status: PaymentStatus
   sourceAccount: string | null
   transactionId: string | null
@@ -276,8 +323,10 @@ export type CreatePaymentRequest = {
   destination: string
   amount: string
   tokenId?: string
-  envelope?: string
-  memo?: string
+  envelope?: string | null
+  memo?: string | null
+  /** The requester's own condition: refuse if less than this would remain. */
+  keepAtLeast?: string | null
 }
 
 export type AnchorStatus = 'PENDING' | 'ANCHORED' | 'FAILED'

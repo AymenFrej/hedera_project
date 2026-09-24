@@ -29,6 +29,7 @@ const TONE: Record<ReceiptOutcome, 'ok' | 'warn' | 'danger'> = {
   AWAITING_APPROVAL: 'warn',
   IN_PROGRESS: 'warn',
   SIMULATED: 'warn',
+  CONDITION_NOT_MET: 'danger',
 }
 
 /**

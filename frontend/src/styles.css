@@ -167,3 +167,32 @@
 .safety li.waiting>svg{color:#e8bd6b}
 .safety li.not_applicable>svg,.safety li.unknown>svg{color:#6d7488}
 @media (max-width:1100px){.safety ul{grid-template-columns:1fr}}
+
+/* --- Payment request (intent) ------------------------------------------- */
+.intent{margin-bottom:18px}
+.intent-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.intent-head h3{margin:0;font-size:16px}
+.intent-head .eyebrow{display:flex;align-items:center;gap:5px}
+.intent-head .text-button{cursor:pointer}
+.intent-sentence{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;font-size:14px;font-weight:600;color:#c8cedd}
+.intent-sentence input,.intent-sentence select{border:1px solid #2c3241;background:#171b26;color:#d7dce8;border-radius:6px;padding:8px 10px;font-family:inherit;font-size:13px;outline:none;min-width:170px}
+.intent-sentence input.short{min-width:0;width:100px}
+.intent-sentence input:focus,.intent-sentence select:focus{border-color:#7665cb}
+.intent-sentence .button{margin-left:auto}
+.understanding{margin-top:14px;padding:13px 15px;border-radius:9px;border:1px solid}
+.understanding.ok{background:#11251c;border-color:#1f4a35}
+.understanding.danger{background:#2a1618;border-color:#5c2429}
+.understanding ul{list-style:none;margin:0 0 12px;padding:0;display:flex;flex-direction:column;gap:7px}
+.understanding li{display:grid;grid-template-columns:14px 110px 1fr auto;gap:8px;align-items:center;font-size:12px}
+.understanding.ok li>svg{color:#7ee0ac}
+.understanding li>svg{color:#f28b93}
+.understanding li span{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:#d7dce8}
+.understanding li em{font-style:normal;font-size:10px;color:#8a93a6}
+.problem{font-size:11px;color:#f28b93;margin-bottom:6px;display:block}
+.contact-book{margin-top:14px;padding-top:12px;border-top:1px solid #222837}
+.contact-book ul{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:6px}
+.contact-book li{display:flex;align-items:center;gap:12px;font-size:12px}
+.contact-book li code{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:#93c9ff}
+.contact-book li .text-button{margin-left:auto;cursor:pointer}
+.contact-book form{display:flex;gap:8px}
+.contact-book input{border:1px solid #2c3241;background:#171b26;color:#d7dce8;border-radius:6px;padding:7px 9px;font-family:inherit;font-size:12px;outline:none}

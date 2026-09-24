@@ -38,6 +38,9 @@ public class PaymentEntity {
   public String policyReason;
   public String failureReason;
 
+  /** The requester's own condition: at least this much of the asset must remain. */
+  public BigDecimal keepAtLeast;
+
   /** What the envelope held when the policy decided, in smallest units. */
   public Long policyEnvelopeBalance;
 

@@ -107,6 +107,9 @@ public class PaymentService {
 
     PaymentEntity payment = draft(request);
     payment.idempotencyKey = key;
+    // The requester's own condition, checked on the real balance before anything is saved, and
+    // before the policy is asked (so a payment that fails it spends nothing from its envelope).
+    String conditionFailure = unmetCondition(payment);
     try {
       payment = repository.saveAndFlush(payment);
     } catch (DataIntegrityViolationException e) {
@@ -115,6 +118,17 @@ public class PaymentService {
         throw e;
       }
       return replay(repository.findByIdempotencyKey(key).orElseThrow(() -> e), request);
+    }
+
+    if (payment.keepAtLeast != null && gateway.isLive()) {
+      if (conditionFailure != null) {
+        payment.status = PaymentStatus.REJECTED.name();
+        payment.failureReason = conditionFailure;
+        payment = touch(payment);
+        audit("PAYMENT_CONDITION", "FAILED", payment);
+        return toResponse(payment);
+      }
+      audit("PAYMENT_CONDITION", "PASSED", payment);
     }
 
     // Decide and commit the verdict under the asset's lock: an allowed payment counts against its
@@ -135,6 +149,46 @@ public class PaymentService {
   }
 
   /**
+   * Null when the requester's "keep at least" condition holds (or cannot apply: no condition, or
+   * simulation mode with no real balance); otherwise why it does not.
+   *
+   * @throws MirrorNodeUnavailableException when the balance cannot be read: the condition is then
+   *     neither assumed met nor assumed broken
+   */
+  String unmetCondition(PaymentEntity payment) {
+    if (payment.keepAtLeast == null || !gateway.isLive()) {
+      return null;
+    }
+    int places = decimals.of(payment.tokenId);
+    Long held = heldUnits(payment.tokenId);
+    long remaining = (held == null ? 0 : held) - payment.amountUnits;
+    long keep = payment.keepAtLeast.movePointRight(places).setScale(0, java.math.RoundingMode.UP).longValueExact();
+    if (remaining >= keep) {
+      return null;
+    }
+    String asset = payment.tokenId == null ? "HBAR" : payment.tokenId;
+    return "Your condition: keep at least " + payment.keepAtLeast.stripTrailingZeros().toPlainString()
+        + " " + asset + ", but only " + (remaining < 0 ? "0" : displayUnits(remaining, places))
+        + " would remain";
+  }
+
+  /** What the paying account holds of an asset, in smallest units; null when it holds none. */
+  private Long heldUnits(String tokenId) {
+    BalanceLookup lookup = mirrorClient.findBalances(gateway.payerAccount());
+    if (lookup.state() != com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.LookupState.FOUND) {
+      throw new MirrorNodeUnavailableException("Mirror Node could not be reached to check your condition");
+    }
+    if (tokenId == null) {
+      return lookup.balances().tinybars();
+    }
+    return lookup.balances().tokens().stream()
+        .filter(t -> t.tokenId().equals(tokenId))
+        .map(com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.TokenHolding::balance)
+        .findFirst()
+        .orElse(null);
+  }
+
+  /**
    * The payment a request describes, not saved. The preview evaluates the policy on exactly this,
    * so what it shows is what execution would be asked.
    */
@@ -152,6 +206,8 @@ public class PaymentService {
             ? null
             : request.envelope().trim().toUpperCase(Locale.ROOT);
     payment.memo = blankToNull(request.memo());
+    payment.keepAtLeast =
+        blankToNull(request.keepAtLeast()) == null ? null : new BigDecimal(request.keepAtLeast());
     Actor requester = actorResolver.currentActor();
     payment.requestedByType = requester.type() == null ? null : requester.type().name();
     payment.requestedById = requester.id();
@@ -623,6 +679,7 @@ public class PaymentService {
         p.destination,
         p.envelope,
         p.memo,
+        p.keepAtLeast == null ? null : p.keepAtLeast.stripTrailingZeros().toPlainString(),
         p.status,
         p.sourceAccount,
         p.transactionId,

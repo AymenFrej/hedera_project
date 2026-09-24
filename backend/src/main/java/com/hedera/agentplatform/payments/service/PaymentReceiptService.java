@@ -188,6 +188,16 @@ public class PaymentReceiptService {
       }
     }
 
+    if (p.keepAtLeast() != null) {
+      boolean failed = events.stream().anyMatch(e -> e.action.equals("PAYMENT_CONDITION") && e.status.equals("FAILED"));
+      boolean passed = events.stream().anyMatch(e -> e.action.equals("PAYMENT_CONDITION") && e.status.equals("PASSED"));
+      rows.add(failed
+          ? new SafetyRow("Your condition", "FAIL", p.failureReason())
+          : passed
+              ? new SafetyRow("Your condition", "PASS", "keep at least " + p.keepAtLeast() + ": met")
+              : new SafetyRow("Your condition", "UNKNOWN", "Not checked: simulation mode"));
+    }
+
     rows.add(approvalRow(p, events));
     rows.add(executionRow(p));
 
@@ -288,7 +298,12 @@ public class PaymentReceiptService {
       case "FAILED" -> "FAILED";
       case "SIMULATED" -> "SIMULATED";
       case "AWAITING_APPROVAL" -> "AWAITING_APPROVAL";
-      case "REJECTED" -> "DENY".equals(p.policyVerdict()) ? "BLOCKED" : "REJECTED";
+      case "REJECTED" ->
+          "DENY".equals(p.policyVerdict())
+              ? "BLOCKED"
+              : p.policyVerdict() == null && p.keepAtLeast() != null
+                  ? "CONDITION_NOT_MET"
+                  : "REJECTED";
       default -> "IN_PROGRESS";
     };
   }
@@ -298,6 +313,7 @@ public class PaymentReceiptService {
       case "CONFIRMED" -> "Payment confirmed";
       case "FAILED" -> "Payment failed";
       case "BLOCKED" -> "Payment blocked by policy";
+      case "CONDITION_NOT_MET" -> "Payment stopped by your condition";
       case "REJECTED" -> "Payment rejected by a reviewer";
       case "AWAITING_APPROVAL" -> "Waiting for approval";
       case "SIMULATED" -> "Payment simulated";
@@ -314,6 +330,7 @@ public class PaymentReceiptService {
               : "Hedera refused the transfer (" + p.failureReason()
                   + "). No funds moved; the network fee was charged.";
       case "BLOCKED" -> "The policy refused it before execution: no Hedera transaction was created.";
+      case "CONDITION_NOT_MET" -> p.failureReason() + ". No Hedera transaction was created.";
       case "REJECTED" ->
           "rejected by a human reviewer".equals(p.failureReason())
               ? "A reviewer refused it: no Hedera transaction was created."
@@ -371,6 +388,11 @@ public class PaymentReceiptService {
       case "POLICY_DECISION:ALLOW", "POLICY_DECISION:HOLD", "POLICY_DECISION:DENY" ->
           new Step("Policy evaluated: " + e.status, "DENY".equals(e.status) ? "FAILED" : "DONE",
               e.createdAt, policyDetail(p) + " (recorded by the Policies module)", e.id);
+      case "PAYMENT_CONDITION:PASSED" ->
+          new Step("Your condition checked", "DONE", e.createdAt,
+              "keep at least " + p.keepAtLeast() + ": met on the real balance", e.id);
+      case "PAYMENT_CONDITION:FAILED" ->
+          new Step("Your condition not met", "FAILED", e.createdAt, p.failureReason(), e.id);
       case "POLICY_APPROVAL:APPROVED" ->
           new Step("Approved by a reviewer", "DONE", e.createdAt,
               "in the approvals queue, which checked it was still affordable", e.id);
