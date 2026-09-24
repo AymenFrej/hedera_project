@@ -77,6 +77,22 @@ class PaymentPolicyIntegrationTest {
   }
 
   @Test
+  void a_refusal_is_explained_with_the_numbers_it_was_decided_on() {
+    vouchForRecipient(); // essentials 300 -> 299
+    long left = essentials();
+
+    PaymentResponse denied = pay(400, "ESSENTIALS");
+
+    assertThat(denied.policyRuleId()).isEqualTo("funds.insufficient");
+    var why = denied.policyExplanation();
+    assertThat(why.requested()).isEqualTo("400");
+    assertThat(why.available()).isEqualTo(String.valueOf(left));
+    assertThat(why.shortfall()).isEqualTo(String.valueOf(400 - left));
+    assertThat(why.transactionCreated()).isFalse();
+    assertThat(essentials()).as("a refusal spends nothing").isEqualTo(left);
+  }
+
+  @Test
   void a_first_payment_is_held_in_the_policies_approvals_queue() {
     PaymentResponse held = pay(10, "ESSENTIALS");
 

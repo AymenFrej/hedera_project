@@ -139,3 +139,19 @@
 .verdict-card p{margin:9px 0 0;font-size:12px;color:#c8cedd;line-height:1.55}
 .verdict-card .audit-meta{margin-top:6px}
 .rule-id{margin-left:auto;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;padding:3px 8px;border-radius:5px;background:#0d101788;color:#c8cedd}
+
+/* --- Payment protection --------------------------------------------------- */
+.protection{border:1px solid;border-radius:10px;padding:13px 16px;margin-bottom:14px}
+.protection.danger{background:#2a1618;border-color:#5c2429}
+.protection.warn{background:#2a2214;border-color:#59431d}
+.protection.ok{background:#11251c;border-color:#1f4a35}
+.protection-head{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:10px}
+.protection.danger .protection-head{color:#f28b93}
+.protection.warn .protection-head{color:#e8bd6b}
+.protection.ok .protection-head{color:#7ee0ac}
+.protection dl{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;margin:0;font-size:11px}
+.protection dt{color:#8a93a6}
+.protection dd{margin:0;color:#d7dce8;font-weight:600}
+.protection dd code{font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:#a594f7}
+.protection dd.short{color:#f28b93}
+.protection dd.not-created{color:#7ee0ac;font-family:'DM Mono',ui-monospace,monospace;font-size:10px}

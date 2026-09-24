@@ -47,8 +47,14 @@ public interface PaymentPolicy {
   /**
    * @param ruleId stable identifier of the rule that settled the decision
    * @param reason human-readable explanation shown in the UI
+   * @param envelopeBalance what the payment's envelope held when the policy decided, in the
+   *     payment's smallest unit; null when there was no such envelope
    */
-  record PaymentPolicyDecision(Verdict verdict, String ruleId, String reason) {}
+  record PaymentPolicyDecision(Verdict verdict, String ruleId, String reason, Long envelopeBalance) {
+    public PaymentPolicyDecision(Verdict verdict, String ruleId, String reason) {
+      this(verdict, ruleId, reason, null);
+    }
+  }
 
   /**
    * @param approvalId the approval opened for a HOLD; null otherwise

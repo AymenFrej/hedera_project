@@ -29,8 +29,14 @@ public record PaymentPreview(
     List<Check> checks,
     String note) {
 
-  /** Exactly what the policy returned; the UI renders it as is. */
-  public record Policy(String verdict, String ruleId, String reason) {}
+  /**
+   * Exactly what the policy returned, plus the envelope numbers it decided on.
+   *
+   * @param available what the envelope holds now, as a person reads it; null without an envelope
+   * @param shortfall how much more than {@code available} is asked; null when it fits
+   */
+  public record Policy(
+      String verdict, String ruleId, String reason, String available, String shortfall) {}
 
   /**
    * A fact read from the ledger.

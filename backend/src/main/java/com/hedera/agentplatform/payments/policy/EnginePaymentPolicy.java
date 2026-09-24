@@ -5,6 +5,7 @@ import com.hedera.agentplatform.policies.PolicyDecision;
 import com.hedera.agentplatform.policies.PolicyEngine;
 import com.hedera.agentplatform.policies.PolicyEngine.Envelope;
 import com.hedera.agentplatform.policies.PolicyRequest;
+import com.hedera.agentplatform.policies.PolicyState;
 import com.hedera.agentplatform.policies.repository.ApprovalRepository;
 import com.hedera.agentplatform.policies.service.ApprovalService;
 import com.hedera.agentplatform.policies.service.EnvelopeLedger;
@@ -37,15 +38,19 @@ public class EnginePaymentPolicy implements PaymentPolicy {
   /** Pure: the engine on the current ledger. Nothing is recorded or debited. */
   @Override
   public PaymentPolicyDecision evaluate(PaymentEntity payment) {
-    return map(PolicyEngine.decide(request(payment), ledger.state()));
+    PolicyState state = ledger.state();
+    return map(PolicyEngine.decide(request(payment), state), state);
   }
 
   /** Decided and recorded by the Policies module, which also debits on ALLOW and opens a HOLD. */
   @Override
   public Submitted submit(PaymentEntity payment) {
-    ApprovalService.Submission s = approvals.submit(request(payment), ledger.state());
+    PolicyState state = ledger.state();
+    ApprovalService.Submission s = approvals.submit(request(payment), state);
     return new Submitted(
-        map(s.decision()), s.approval() == null ? null : s.approval().id(), s.auditEventId());
+        map(s.decision(), state),
+        s.approval() == null ? null : s.approval().id(),
+        s.auditEventId());
   }
 
   /**
@@ -90,8 +95,14 @@ public class EnginePaymentPolicy implements PaymentPolicy {
     return new PolicyRequest(envelope(payment.envelope), payment.amountUnits, payment.destination);
   }
 
-  private static PaymentPolicyDecision map(PolicyDecision d) {
-    return new PaymentPolicyDecision(Verdict.valueOf(d.verdict().name()), d.ruleId(), d.reason());
+  /** The verdict, plus the envelope balance it was decided on. */
+  private static PaymentPolicyDecision map(PolicyDecision d, PolicyState state) {
+    Envelope envelope = d.request().envelope();
+    return new PaymentPolicyDecision(
+        Verdict.valueOf(d.verdict().name()),
+        d.ruleId(),
+        d.reason(),
+        envelope == null ? null : state.balances().get(envelope));
   }
 
   private static Envelope envelope(String name) {

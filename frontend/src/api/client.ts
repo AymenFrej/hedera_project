@@ -121,7 +121,15 @@ export type PaymentPreview = {
   symbol: string | null
   balanceBefore: string | null
   balanceAfter: string | null
-  policy: { verdict: 'ALLOW' | 'HOLD' | 'DENY'; ruleId: string | null; reason: string | null }
+  policy: {
+    verdict: 'ALLOW' | 'HOLD' | 'DENY'
+    ruleId: string | null
+    reason: string | null
+    /** What the envelope holds now; null without an envelope. */
+    available: string | null
+    /** How much more than `available` is asked; null when it fits. */
+    shortfall: string | null
+  }
   checks: { name: string; status: 'PASS' | 'WARN' | 'FAIL' | 'UNKNOWN'; detail: string }[]
   note: string
 }
@@ -207,6 +215,21 @@ export async function rejectPayment(id: string): Promise<Payment> {
   return request(`/payments/${encodeURIComponent(id)}/reject`, { method: 'POST' })
 }
 
+/** Why the policy decided, with the numbers it decided on. Comes from the backend as is. */
+export type PolicyExplanation = {
+  verdict: 'ALLOW' | 'HOLD' | 'DENY'
+  ruleId: string | null
+  reason: string | null
+  envelope: string | null
+  asset: string
+  requested: string | null
+  /** What the envelope held when the policy decided; null without an envelope. */
+  available: string | null
+  /** How much more than `available` was asked; null when it fitted. */
+  shortfall: string | null
+  transactionCreated: boolean
+}
+
 export type PaymentStatus =
   | 'PENDING'
   | 'AWAITING_APPROVAL'
@@ -232,6 +255,7 @@ export type Payment = {
   policyVerdict: 'ALLOW' | 'HOLD' | 'DENY' | null
   policyRuleId: string | null
   policyReason: string | null
+  policyExplanation: PolicyExplanation | null
   failureReason: string | null
   /** Who asked for the payment. Resolved server-side, never sent by the client. */
   requestedByType: 'USER' | 'AGENT' | 'SYSTEM' | null

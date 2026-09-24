@@ -46,13 +46,16 @@ public class PaymentPreviewService {
   private final HederaPaymentGateway gateway;
   private final PaymentMirrorClient mirror;
   private final HederaProperties properties;
+  private final TokenDecimals decimals;
 
   public PaymentPreviewService(
       PaymentService payments,
       PaymentPolicy policy,
       HederaPaymentGateway gateway,
       PaymentMirrorClient mirror,
-      HederaProperties properties) {
+      HederaProperties properties,
+      TokenDecimals decimals) {
+    this.decimals = decimals;
     this.payments = payments;
     this.policy = policy;
     this.gateway = gateway;
@@ -63,8 +66,17 @@ public class PaymentPreviewService {
   public PaymentPreview preview(CreatePaymentRequest request) {
     PaymentEntity draft = payments.draft(request);
     PaymentPolicyDecision decision = policy.evaluate(draft);
+    int places = decimals.of(draft.tokenId);
+    Long left = decision.envelopeBalance();
     PaymentPreview.Policy verdict =
-        new PaymentPreview.Policy(decision.verdict().name(), decision.ruleId(), decision.reason());
+        new PaymentPreview.Policy(
+            decision.verdict().name(),
+            decision.ruleId(),
+            decision.reason(),
+            left == null ? null : plain(BigDecimal.valueOf(left, places)),
+            left != null && draft.amountUnits > left
+                ? plain(BigDecimal.valueOf(draft.amountUnits - left, places))
+                : null);
     boolean hbar = draft.tokenId == null;
     String payer = gateway.payerAccount();
 
@@ -89,7 +101,7 @@ public class PaymentPreviewService {
 
     List<Check> checks = new ArrayList<>();
     String symbol = hbar ? "HBAR" : draft.tokenId;
-    int decimals = hbar ? HBAR_DECIMALS : 0;
+    int digits = hbar ? HBAR_DECIMALS : 0;
 
     checks.add(recipientCheck(draft.destination, payer));
 
@@ -100,9 +112,9 @@ public class PaymentPreviewService {
         case FOUND -> {
           tokenKnown = true;
           symbol = token.token().symbol() != null ? token.token().symbol() : draft.tokenId;
-          decimals = token.token().decimals();
+          digits = token.token().decimals();
           checks.add(new Check("Token", PASS,
-              symbol + " (" + draft.tokenId + "), " + decimals + " decimals"));
+              symbol + " (" + draft.tokenId + "), " + digits + " decimals"));
         }
         case NOT_FOUND -> checks.add(new Check("Token", FAIL,
             "No token " + draft.tokenId + " on " + properties.getNetwork()
@@ -123,8 +135,8 @@ public class PaymentPreviewService {
         checks.add(new Check("Balance", FAIL,
             payer + " does not hold " + symbol + ": Hedera would refuse the transfer"));
       } else {
-        before = plain(BigDecimal.valueOf(held, decimals));
-        after = plain(BigDecimal.valueOf(held - draft.amountUnits, decimals));
+        before = plain(BigDecimal.valueOf(held, digits));
+        after = plain(BigDecimal.valueOf(held - draft.amountUnits, digits));
         if (held < draft.amountUnits) {
           after = null;
           checks.add(new Check("Balance", FAIL,

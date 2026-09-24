@@ -17,6 +17,7 @@ public record PaymentResponse(
     String policyVerdict,
     String policyRuleId,
     String policyReason,
+    PolicyExplanation policyExplanation,
     String failureReason,
     String approvalId,
     String policyAuditEventId,

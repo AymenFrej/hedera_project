@@ -18,6 +18,7 @@ import {
   type ReceiptOutcome,
   type ReceiptStep,
 } from '../../api/client'
+import PolicyProtection from './PolicyProtection'
 
 const TONE: Record<ReceiptOutcome, 'ok' | 'warn' | 'danger'> = {
   CONFIRMED: 'ok',
@@ -153,16 +154,22 @@ export default function PaymentResultPanel({
         auditVerified={auditVerified}
       />
 
-      {(receipt.outcome === 'BLOCKED' || receipt.outcome === 'REJECTED') && (
+      {p.policyExplanation &&
+        (p.policyExplanation.verdict === 'DENY' ||
+          receipt.outcome === 'AWAITING_APPROVAL' ||
+          receipt.outcome === 'REJECTED') && (
+        <PolicyProtection
+          why={p.policyExplanation}
+          asset={asset}
+          whenNotSent="NOT CREATED: nothing was sent, no fee was paid"
+        />
+      )}
+      {receipt.outcome === 'REJECTED' && p.failureReason && (
         <div className="audit-banner danger">
           <MinusCircle size={16} />
           <div>
-            <b>Hedera transaction was not created</b>
-            <span>
-              {receipt.outcome === 'BLOCKED'
-                ? `Policy ${p.policyVerdict}${p.policyRuleId ? ` · rule ${p.policyRuleId}` : ''}${p.policyReason ? ` · ${p.policyReason}` : ''}`
-                : 'Rejected by a reviewer before anything was sent.'}
-            </span>
+            <b>Not sent</b>
+            <span>{p.failureReason}</span>
           </div>
         </div>
       )}

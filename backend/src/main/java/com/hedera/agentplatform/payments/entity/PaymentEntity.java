@@ -38,6 +38,9 @@ public class PaymentEntity {
   public String policyReason;
   public String failureReason;
 
+  /** What the envelope held when the policy decided, in smallest units. */
+  public Long policyEnvelopeBalance;
+
   /** Audit event the Policies module recorded the decision as. */
   public String policyAuditEventId;
 

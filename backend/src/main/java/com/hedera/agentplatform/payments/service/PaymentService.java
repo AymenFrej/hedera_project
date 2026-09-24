@@ -5,6 +5,7 @@ import com.hedera.agentplatform.payments.dto.BalanceResponse;
 import com.hedera.agentplatform.payments.dto.CreatePaymentRequest;
 import com.hedera.agentplatform.payments.dto.PaymentResponse;
 import com.hedera.agentplatform.payments.dto.PaymentVerification;
+import com.hedera.agentplatform.payments.dto.PolicyExplanation;
 import com.hedera.agentplatform.payments.entity.PaymentEntity;
 import com.hedera.agentplatform.payments.entity.PaymentStatus;
 import com.hedera.agentplatform.payments.hedera.HederaPaymentGateway;
@@ -181,6 +182,7 @@ public class PaymentService {
     payment.policyVerdict = decision.verdict().name();
     payment.policyRuleId = decision.ruleId();
     payment.policyReason = decision.reason();
+    payment.policyEnvelopeBalance = decision.envelopeBalance();
     payment.status =
         switch (decision.verdict()) {
           case ALLOW -> PaymentStatus.PENDING.name();
@@ -628,6 +630,7 @@ public class PaymentService {
         p.policyVerdict,
         p.policyRuleId,
         p.policyReason,
+        explain(p),
         p.failureReason,
         p.approvalId,
         p.policyAuditEventId,
@@ -635,6 +638,46 @@ public class PaymentService {
         p.requestedById,
         p.createdAt,
         p.updatedAt);
+  }
+
+  /**
+   * The decision with the numbers it was made on: amount requested, what the envelope held then,
+   * and the shortfall. Null before the policy has decided.
+   */
+  private PolicyExplanation explain(PaymentEntity p) {
+    if (p.policyVerdict == null) {
+      return null;
+    }
+    int places = decimalsForDisplay(p);
+    String available =
+        p.policyEnvelopeBalance == null ? null : displayUnits(p.policyEnvelopeBalance, places);
+    String shortfall =
+        p.policyEnvelopeBalance != null && p.amountUnits != null && p.amountUnits > p.policyEnvelopeBalance
+            ? displayUnits(p.amountUnits - p.policyEnvelopeBalance, places)
+            : null;
+    return new PolicyExplanation(
+        p.policyVerdict,
+        p.policyRuleId,
+        p.policyReason,
+        p.envelope,
+        p.currency,
+        p.amount == null ? null : p.amount.stripTrailingZeros().toPlainString(),
+        available,
+        shortfall,
+        p.transactionId != null && !NEVER_REACHED.equals(p.failureReason));
+  }
+
+  /** Decimals of the payment's asset for display; falls back to smallest units if unknown. */
+  private int decimalsForDisplay(PaymentEntity p) {
+    try {
+      return decimals.of(p.tokenId);
+    } catch (RuntimeException e) {
+      return 0;
+    }
+  }
+
+  private static String displayUnits(long units, int places) {
+    return BigDecimal.valueOf(units, places).stripTrailingZeros().toPlainString();
   }
 
   /** Only once the transfer was actually sent: a mock payment has nothing to show on HashScan. */

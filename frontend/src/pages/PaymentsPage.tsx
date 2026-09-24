@@ -486,6 +486,12 @@ function PreviewPanel({
 
         <div>
           <p className="eyebrow">POLICY</p>
+          {p.policy.available !== null && (
+            <span className="audit-meta">
+              Envelope now: {p.policy.available} {asset}
+              {p.policy.shortfall ? ` · short by ${p.policy.shortfall} ${asset}` : ''}
+            </span>
+          )}
           <div className="preview-policy">
             <span className={`anchor-badge ${p.policy.verdict === 'ALLOW' ? 'ok' : p.policy.verdict === 'HOLD' ? 'pending' : 'failed'}`}>
               {p.policy.verdict}
