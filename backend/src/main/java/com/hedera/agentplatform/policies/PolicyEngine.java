@@ -59,8 +59,12 @@ public final class PolicyEngine {
     long amount = request.amount();
 
     if (envelope == null) {
-      return new PolicyDecision(
-          Verdict.DENY, "envelope.unknown", "no envelope named in the request", request, null);
+      String named = request.envelopeName();
+      String reason =
+          named == null || named.isBlank()
+              ? "no envelope named in the request"
+              : "there is no envelope called \"" + named + "\"";
+      return new PolicyDecision(Verdict.DENY, "envelope.unknown", reason, request, null);
     }
     if (amount <= 0) {
       return new PolicyDecision(
