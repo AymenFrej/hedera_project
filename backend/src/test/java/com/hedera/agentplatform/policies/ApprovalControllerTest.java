@@ -61,6 +61,19 @@ class ApprovalControllerTest {
   }
 
   @Test
+  void a_refused_answer_says_why_in_the_body() throws Exception {
+    MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+    String id = pendingApprovalId();
+
+    mockMvc.perform(post("/api/v1/policies/approvals/{id}/approve", id)).andExpect(status().isOk());
+
+    mockMvc
+        .perform(post("/api/v1/policies/approvals/{id}/approve", id))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("already")));
+  }
+
+  @Test
   void answering_an_unknown_approval_is_a_404_not_a_500() throws Exception {
     MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
 

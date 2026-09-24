@@ -10,8 +10,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/v1/policies")
@@ -80,24 +80,29 @@ public class PolicyController {
   }
 
   @PostMapping("/approvals/{id}/approve")
-  public ApprovalResponse approve(@PathVariable String id) {
+  public ResponseEntity<?> approve(@PathVariable String id) {
     try {
-      return approvals.approve(id);
+      return ResponseEntity.ok(approvals.approve(id));
     } catch (IllegalArgumentException e) {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+      return refusal(HttpStatus.NOT_FOUND, e.getMessage());
     } catch (IllegalStateException e) {
-      throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+      return refusal(HttpStatus.CONFLICT, e.getMessage());
     }
   }
 
   @PostMapping("/approvals/{id}/reject")
-  public ApprovalResponse reject(@PathVariable String id) {
+  public ResponseEntity<?> reject(@PathVariable String id) {
     try {
-      return approvals.reject(id);
+      return ResponseEntity.ok(approvals.reject(id));
     } catch (IllegalArgumentException e) {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+      return refusal(HttpStatus.NOT_FOUND, e.getMessage());
     } catch (IllegalStateException e) {
-      throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+      return refusal(HttpStatus.CONFLICT, e.getMessage());
     }
+  }
+
+  /** A refusal a human can read: the rule that stopped them, not a bare status code. */
+  private static ResponseEntity<Map<String, String>> refusal(HttpStatus status, String reason) {
+    return ResponseEntity.status(status).body(Map.of("error", reason));
   }
 }
