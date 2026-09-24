@@ -8,7 +8,7 @@ import com.hedera.agentplatform.policies.service.ApprovalService;
 import com.hedera.agentplatform.policies.service.PolicyService;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.RepeatedTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +25,12 @@ class ApprovalQueueOrderTest {
       new PolicyState(
           Map.of(Envelope.RENT, 500L, Envelope.EMERGENCY, 500L), List.of("landlord-tunis"));
 
-  @Test
+  /**
+   * Repeated because the bug it guards was intermittent. Both submissions land in the same
+   * millisecond, so requested_at cannot separate them and only the insert sequence can. A single
+   * run passed roughly half the time, which is indistinguishable from working.
+   */
+  @RepeatedTest(20)
   void the_most_recent_request_is_listed_first() {
     String older =
         approvals
