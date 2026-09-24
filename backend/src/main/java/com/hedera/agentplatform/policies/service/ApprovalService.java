@@ -99,6 +99,22 @@ public class ApprovalService {
           "Approval " + approvalId + " was already " + entity.status.toLowerCase(Locale.ROOT));
     }
 
+    if ("APPROVED".equals(status)) {
+      PolicyEngine.Envelope envelope = PolicyEngine.Envelope.valueOf(entity.envelope);
+      long available = ledger.state().balances().getOrDefault(envelope, 0L);
+      if (entity.amount > available) {
+        throw new IllegalStateException(
+            "Approval "
+                + approvalId
+                + " is no longer affordable: "
+                + entity.envelope
+                + " holds "
+                + available
+                + " but the request is for "
+                + entity.amount);
+      }
+    }
+
     Actor actor = actorResolver.currentActor();
     entity.status = status;
     entity.decidedAt = Instant.now();
