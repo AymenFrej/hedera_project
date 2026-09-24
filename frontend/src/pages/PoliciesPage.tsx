@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, Loader2, PauseCircle, ShieldCheck, XCircle } from 'lucide-react'
+import { CheckCircle2, Loader2, PauseCircle, RotateCcw, ShieldCheck, XCircle } from 'lucide-react'
 import {
   decideSpend,
   getPolicyState,
+  resetDemo,
   type DecideResponse,
   type PolicyStateResponse,
 } from '../api/client'
@@ -38,6 +39,16 @@ export default function PoliciesPage() {
       setError(e instanceof Error ? e.message : 'Backend unreachable')
     } finally {
       setDeciding(false)
+    }
+  }
+
+  async function handleReset() {
+    setError(null)
+    try {
+      setState(await resetDemo())
+      setDecision(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Backend unreachable')
     }
   }
 
@@ -103,6 +114,10 @@ export default function PoliciesPage() {
           <button className="button primary" onClick={handleDecide} disabled={deciding}>
             {deciding ? <Loader2 size={15} className="spin" /> : <ShieldCheck size={15} />}
             Ask the policy engine
+          </button>
+          <button className="button secondary" onClick={handleReset} title="Audit trail is kept">
+            <RotateCcw size={15} />
+            Reset the demo
           </button>
         </div>
 

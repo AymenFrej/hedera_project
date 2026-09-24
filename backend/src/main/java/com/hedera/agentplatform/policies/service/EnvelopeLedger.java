@@ -54,6 +54,25 @@ public class EnvelopeLedger {
     return known;
   }
 
+  /** The runway the demo starts from, same amounts the V5 migration seeds. */
+  private static final Map<Envelope, Long> SEEDED_RUNWAY =
+      Map.of(Envelope.RENT, 500L, Envelope.ESSENTIALS, 300L, Envelope.EMERGENCY, 200L);
+
+  /**
+   * Puts the demo back to its opening position: full envelopes, no questions pending, no
+   * counterparty vouched for. The audit trail is deliberately left alone — a ledger you can wipe
+   * proves nothing, so the reset is itself visible in the history.
+   */
+  public void reset() {
+    approvals.deleteAll();
+    for (Map.Entry<Envelope, Long> entry : SEEDED_RUNWAY.entrySet()) {
+      EnvelopeBalanceEntity row = new EnvelopeBalanceEntity();
+      row.envelope = entry.getKey().name();
+      row.balance = entry.getValue();
+      repository.save(row);
+    }
+  }
+
   /** Takes the amount out of the envelope. Only called once a spend is settled. */
   public void debit(Envelope envelope, long amount) {
     EnvelopeBalanceEntity row =
