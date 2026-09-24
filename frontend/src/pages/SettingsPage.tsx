@@ -47,7 +47,7 @@ export default function SettingsPage() {
         <p>Status: {account?.status} · Recorded balance: {account?.balance} HBAR</p>
         <button className="button secondary" onClick={() => { void logout(); navigate('/login', {replace: true}) }}>Log out</button>
         {['USER', 'AUDITOR'].includes(user?.role ?? '') ?
-          <button className="danger-button" disabled={busy} onClick={remove}>Delete account</button> :
+          <button className="danger-button" disabled={busy} onClick={remove}>Close account</button> :
           <p>Another administrator must close a privileged account.</p>}
       </section>
     </div></>

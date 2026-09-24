@@ -142,4 +142,64 @@ class AccountsAccessTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.role").value(role));
         }
     }
+    @Test void closeRestoreAndEditPreserveLoginAndWallet() throws Exception {
+        var admin = register("ADMIN"); var user = register("USER");
+        String id = user.get("userId").asText();
+        mvc.perform(delete("/api/v1/admin/users/"+id).header("Authorization",auth(admin))).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/admin/users/"+id+"/restore").header("Authorization",auth(admin))
+            .contentType("application/json").content("{\"role\":\"AUDITOR\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.role").value("AUDITOR"));
+        mvc.perform(put("/api/v1/admin/users/"+id+"/profile").header("Authorization",auth(admin))
+            .contentType("application/json").content("{\"email\":\"restored@example.test\",\"displayName\":\"Restored user\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.displayName").value("Restored user"));
+        mvc.perform(post("/api/v1/auth/login").contentType("application/json")
+            .content("{\"email\":\"restored@example.test\",\"password\":\"OriginalPass123!\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.role").value("AUDITOR"))
+            .andExpect(jsonPath("$.account.hederaAccountId").value("0.0.12345"));
+        mvc.perform(get("/api/v1/auth/me").header("Authorization",auth(user))).andExpect(status().isUnauthorized());
+        mvc.perform(put("/api/v1/admin/users/"+id+"/profile").header("Authorization",auth(admin))
+            .contentType("application/json").content(json.writeValueAsString(Map.of("email",admin.get("email").asText(),"displayName","Duplicate"))))
+            .andExpect(status().isBadRequest());
+    }
+    @Test void onlyClosedMockAccountsCanBePermanentlyDeletedAndEmailReused() throws Exception {
+        var admin = register("ADMIN"); var user = register("USER");
+        String id=user.get("userId").asText(); String accountId=user.get("account").get("id").asText();
+        mvc.perform(delete("/api/v1/admin/users/"+id+"/mock").header("Authorization",auth(admin))).andExpect(status().isBadRequest());
+        mvc.perform(delete("/api/v1/admin/users/"+id).header("Authorization",auth(admin))).andExpect(status().isOk());
+        mvc.perform(delete("/api/v1/admin/users/"+id+"/mock").header("Authorization",auth(admin))).andExpect(status().isBadRequest());
+        assertThat(accounts.findById(accountId).orElseThrow().encryptedPrivateKey).isNotBlank();
+        var account=accounts.findById(accountId).orElseThrow(); account.hederaAccountId="0.0.mock"; account.encryptedPrivateKey=null; accounts.saveAndFlush(account);
+        mvc.perform(delete("/api/v1/admin/users/"+id+"/mock").header("Authorization",auth(admin))).andExpect(status().isOk());
+        assertThat(users.findById(id)).isEmpty(); assertThat(accounts.findById(accountId)).isEmpty();
+        mvc.perform(post("/api/v1/auth/register").contentType("application/json")
+            .content(json.writeValueAsString(Map.of("email",user.get("email").asText(),"password","OriginalPass123!"))))
+            .andExpect(status().isOk());
+    }
+    @Test void mockWalletUpgradeRequiresRealGatewayAndCannotReplaceRealKeys() throws Exception {
+        var admin=register("ADMIN"); var user=register("USER");
+        String id=user.get("userId").asText(); String accountId=user.get("account").get("id").asText();
+        var account=accounts.findById(accountId).orElseThrow(); account.hederaAccountId="0.0.mock"; account.encryptedPrivateKey=null; account.status="MOCK"; accounts.saveAndFlush(account);
+        mvc.perform(post("/api/v1/admin/users/"+id+"/wallet").header("Authorization",auth(admin))).andExpect(status().isBadRequest());
+        assertThat(accounts.findById(accountId).orElseThrow().hederaAccountId).isEqualTo("0.0.mock");
+        when(gateway.createAccount("0")).thenReturn(new HederaAccountGateway.AccountGatewayResult("0.0.99999","ACTIVE",false,"new-test-key"));
+        mvc.perform(post("/api/v1/admin/users/"+id+"/wallet").header("Authorization",auth(admin)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.hederaAccountId").value("0.0.99999"));
+        String protectedKey=accounts.findById(accountId).orElseThrow().encryptedPrivateKey;
+        assertThat(protectedKey).isNotBlank().isNotEqualTo("new-test-key");
+        clearInvocations(gateway);
+        mvc.perform(post("/api/v1/admin/users/"+id+"/wallet").header("Authorization",auth(admin))).andExpect(status().isBadRequest());
+        verifyNoInteractions(gateway);
+        assertThat(accounts.findById(accountId).orElseThrow().encryptedPrivateKey).isEqualTo(protectedKey);
+    }
+    @Test void lifecycleOperationsDenyOrdinaryUsersAndReturnNotFound() throws Exception {
+        var admin=register("ADMIN"); var user=register("USER");
+        String id=user.get("userId").asText();
+        for(String action: new String[]{"restore","wallet"}) {
+            mvc.perform(post("/api/v1/admin/users/"+id+"/"+action).header("Authorization",auth(user)).contentType("application/json")
+                .content("{\"role\":\"ADMIN\"}")).andExpect(status().isForbidden());
+        }
+        mvc.perform(delete("/api/v1/admin/users/"+id+"/mock").header("Authorization",auth(user))).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/admin/users/missing/restore").header("Authorization",auth(admin)).contentType("application/json")
+            .content("{\"role\":\"USER\"}")).andExpect(status().isNotFound());
+    }
 }

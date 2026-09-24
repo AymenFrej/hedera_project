@@ -77,3 +77,20 @@ test('policy refusal keeps main error message and authenticated session', async 
   assert.equal(client.getAuthToken(),'test-token')
   assert.deepEqual(redirects,[])
 })
+test('admin lifecycle actions use separate authenticated endpoints', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push([url.split('/api/v1')[1], options.method])
+    assert.equal(options.headers.Authorization,'Bearer test-token')
+    return options.method === 'DELETE' ? new Response(null,{status:204}) : Response.json({id:'u',role:'USER'})
+  }
+  await client.editManagedProfile('u','user@example.test','User')
+  await client.deleteManagedUser('u')
+  await client.restoreManagedUser('u','USER')
+  await client.provisionManagedWallet('u')
+  await client.deleteMockUser('u')
+  assert.deepEqual(calls,[
+    ['/admin/users/u/profile','PUT'],['/admin/users/u','DELETE'],
+    ['/admin/users/u/restore','POST'],['/admin/users/u/wallet','POST'],['/admin/users/u/mock','DELETE'],
+  ])
+})

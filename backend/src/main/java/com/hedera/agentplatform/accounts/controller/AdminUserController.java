@@ -14,4 +14,8 @@ public class AdminUserController {
     @PostMapping public ManagedUserResponse create(@RequestHeader(value="Authorization",required=false) String auth,@RequestBody CreateManagedUserRequest request){return service.create(auth,request);}
     @PutMapping("/{id}/role") public ManagedUserResponse role(@RequestHeader(value="Authorization",required=false) String auth,@PathVariable String id,@RequestBody RoleUpdateRequest request){return service.updateRole(auth,id,request);}
     @DeleteMapping("/{id}") public void delete(@RequestHeader(value="Authorization",required=false) String auth,@PathVariable String id){service.delete(auth,id);}
+    @PutMapping("/{id}/profile") public ManagedUserResponse profile(@RequestHeader(value="Authorization",required=false) String auth,@PathVariable String id,@RequestBody ProfileUpdateRequest request){return service.updateProfile(auth,id,request);}
+    @PostMapping("/{id}/restore") public ManagedUserResponse restore(@RequestHeader(value="Authorization",required=false) String auth,@PathVariable String id,@RequestBody RoleUpdateRequest request){return service.restore(auth,id,request);}
+    @PostMapping("/{id}/wallet") public ManagedUserResponse wallet(@RequestHeader(value="Authorization",required=false) String auth,@PathVariable String id){return service.provisionWallet(auth,id);}
+    @DeleteMapping("/{id}/mock") public void deleteMock(@RequestHeader(value="Authorization",required=false) String auth,@PathVariable String id){service.deleteMock(auth,id);}
 }

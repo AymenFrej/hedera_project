@@ -43,3 +43,17 @@ an adaptive password hash, sessions need a hardened production strategy, and wal
 backup/recovery and closure/fund recovery workflows need explicit design. Keep the key
 encryption secret stable; changing it does not re-encrypt previously created wallets.
 Other modules' placeholder actions are outside the account-management regression scope.
+
+## Administrative CRUD
+
+- Edit user: PUT /api/v1/admin/users/{id}/profile updates email and display name, rejecting duplicate emails.
+- Close account: DELETE /api/v1/admin/users/{id} revokes sessions and retains the wallet and keys.
+- Restore: POST /api/v1/admin/users/{id}/restore with a selected role enables login using the existing password.
+- Create real wallet: POST /api/v1/admin/users/{id}/wallet upgrades only an active mock account without stored keys.
+  Missing real credentials cause an error, not a silently successful mock upgrade.
+- Delete mock account: DELETE /api/v1/admin/users/{id}/mock permanently removes only a closed mock
+  account without stored keys. Confirmation is required in the UI; the email can then be reused.
+
+These actions require ADMIN or PLATFORM. Real wallet accounts can be closed/restored, but their
+keys cannot be purged through the CRUD API. Explicit restoration is required before role changes.
+Wallet provisioning and administrative lifecycle updates lock the user row to serialize concurrent changes.
