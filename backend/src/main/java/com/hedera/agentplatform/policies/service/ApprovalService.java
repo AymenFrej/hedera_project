@@ -2,6 +2,7 @@ package com.hedera.agentplatform.policies.service;
 
 import com.hedera.agentplatform.audit.service.AuditService;
 import com.hedera.agentplatform.policies.PolicyDecision;
+import com.hedera.agentplatform.policies.PolicyEngine;
 import com.hedera.agentplatform.policies.PolicyRequest;
 import com.hedera.agentplatform.policies.PolicyState;
 import com.hedera.agentplatform.policies.Verdict;
@@ -30,16 +31,19 @@ public class ApprovalService {
   private final ApprovalRepository repository;
   private final AuditService auditService;
   private final ActorResolver actorResolver;
+  private final EnvelopeLedger ledger;
 
   public ApprovalService(
       PolicyDecisionService decisions,
       ApprovalRepository repository,
       AuditService auditService,
-      ActorResolver actorResolver) {
+      ActorResolver actorResolver,
+      EnvelopeLedger ledger) {
     this.decisions = decisions;
     this.repository = repository;
     this.auditService = auditService;
     this.actorResolver = actorResolver;
+    this.ledger = ledger;
   }
 
   /**
@@ -54,6 +58,9 @@ public class ApprovalService {
     PolicyDecision decision = recorded.decision();
 
     if (decision.verdict() != Verdict.HOLD) {
+      if (decision.verdict() == Verdict.ALLOW) {
+        ledger.debit(request.envelope(), request.amount());
+      }
       return new Submission(decision, null);
     }
 
@@ -96,6 +103,10 @@ public class ApprovalService {
     entity.status = status;
     entity.decidedAt = Instant.now();
     entity.decidedBy = actor == null ? null : actor.id();
+
+    if ("APPROVED".equals(status)) {
+      ledger.debit(PolicyEngine.Envelope.valueOf(entity.envelope), entity.amount);
+    }
 
     Map<String, Object> metadata = new LinkedHashMap<>();
     metadata.put("approvalId", entity.id);
