@@ -51,6 +51,21 @@ class PolicyEngineTest {
   }
 
   @Test
+  void deniesASpendWithNoPayeeInsteadOfAskingAHumanToApproveIt() {
+    // A transfer with no counterparty cannot settle: there is nobody to pay. Holding it puts
+    // "first transfer to null" in the approvals queue, where a human can approve a payment that
+    // will never execute. DENY beats HOLD.
+    for (String noPayee : new String[] {null, "", "   "}) {
+      PolicyDecision d =
+          PolicyEngine.decide(
+              new PolicyRequest(Envelope.RENT, 10, noPayee), state(Map.of(Envelope.RENT, 500L)));
+
+      assertThat(d.verdict()).as("payee %s must be denied", noPayee).isEqualTo(Verdict.DENY);
+      assertThat(d.ruleId()).isEqualTo("counterparty.missing");
+    }
+  }
+
+  @Test
   void allowsAModestAmountToAKnownCounterparty() {
     PolicyDecision d =
         PolicyEngine.decide(
