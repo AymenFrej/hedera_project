@@ -65,9 +65,3 @@
 .verdict-card p{margin:9px 0 0;font-size:12px;color:#c8cedd;line-height:1.55}
 .verdict-card .audit-meta{margin-top:6px}
 .rule-id{margin-left:auto;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;padding:3px 8px;border-radius:5px;background:#0d101788;color:#c8cedd}
-
-.verdict-pill{font:9px 'DM Mono',monospace;letter-spacing:.4px;padding:5px 8px;border-radius:5px;border:1px solid}
-.verdict-pill.ok{background:#11251c;border-color:#1f4a35;color:#7ee0ac}
-.verdict-pill.danger{background:#2a1618;border-color:#5c2429;color:#f28b93}
-.verdict-pill.warn{background:#2a2214;border-color:#59431d;color:#e8bd6b}
-.data-row .button{height:28px;padding:0 10px}

@@ -2,12 +2,6 @@ import { useEffect, useState } from 'react'
 import { CheckCircle2, FileCheck2, XCircle } from 'lucide-react'
 import { answerApproval, listApprovals, type ApprovalRequest } from '../api/client'
 
-const STATUS_CLASS: Record<ApprovalRequest['status'], string> = {
-  PENDING: 'warn',
-  APPROVED: 'ok',
-  REJECTED: 'danger',
-}
-
 export default function ApprovalsPage() {
   const [items, setItems] = useState<ApprovalRequest[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -95,7 +89,7 @@ export default function ApprovalsPage() {
                       </button>
                     </>
                   ) : (
-                    <span className={`verdict-pill ${STATUS_CLASS[item.status]}`}>
+                    <span className="status-badge">
                       {item.status} by {item.decidedBy}
                     </span>
                   )}
