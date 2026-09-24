@@ -163,6 +163,7 @@ export default function PaymentResultPanel({
         <PolicyProtection
           why={p.policyExplanation}
           asset={asset}
+          countsAgainstEnvelope={p.currency === 'HBAR'}
           whenNotSent="NOT CREATED: nothing was sent, no fee was paid"
         />
       )}

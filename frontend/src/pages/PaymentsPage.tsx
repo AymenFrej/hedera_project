@@ -538,6 +538,11 @@ function PreviewPanel({
               {p.policy.shortfall ? ` · short by ${p.policy.shortfall} ${asset}` : ''}
             </span>
           )}
+          {p.tokenId && (
+            <span className="audit-meta">
+              Not counted against an envelope: envelopes are a budget in HBAR. The recipient rules still apply.
+            </span>
+          )}
           <div className="preview-policy">
             <span className={`anchor-badge ${p.policy.verdict === 'ALLOW' ? 'ok' : p.policy.verdict === 'HOLD' ? 'pending' : 'failed'}`}>
               {p.policy.verdict}
