@@ -27,7 +27,7 @@ class RulebookEndpointTest {
 
   @Test
   void the_policies_endpoint_serves_the_rulebook_not_a_placeholder() throws Exception {
-    MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+    MockMvc mockMvc = com.hedera.agentplatform.accounts.AuthenticatedMvc.admin(context);
 
     mockMvc
         .perform(get("/api/v1/policies"))

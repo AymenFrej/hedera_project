@@ -1,4 +1,27 @@
-import { NavLink } from 'react-router-dom'
-import { Activity, ArrowLeftRight, Bot, CircleDollarSign, Coins, FileCheck2, LayoutDashboard, Settings, ShieldCheck, Users } from 'lucide-react'
-const primary = [{ to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }, { to: '/accounts', label: 'Accounts', icon: Users }, { to: '/payments', label: 'Payments', icon: ArrowLeftRight }, { to: '/tokens', label: 'Tokens', icon: Coins }, { to: '/audit', label: 'Audit & Monitoring', icon: Activity }, { to: '/policies', label: 'Policies', icon: ShieldCheck }, { to: '/approvals', label: 'Approvals', icon: FileCheck2 }]
-export default function Sidebar() { return <aside className="sidebar"><div className="brand"><div className="brand-mark"><Bot size={19}/></div><div><strong>Hedera</strong><span>Agent Platform</span></div></div><div className="workspace"><span className="workspace-dot"/> Demo workspace <span className="chevron">⌄</span></div><nav>{primary.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}><Icon size={17}/><span>{label}</span></NavLink>)}</nav><div className="sidebar-bottom"><NavLink to="/developer" className="nav-link"><CircleDollarSign size={17}/><span>Developer</span></NavLink><NavLink to="/settings" className="nav-link"><Settings size={17}/><span>Settings</span></NavLink></div></aside> }
+import { NavLink, useNavigate } from 'react-router-dom'
+import { Activity, ArrowLeftRight, Bot, Coins, FileCheck2, LayoutDashboard, Settings, ShieldCheck, Users, LogOut } from 'lucide-react'
+import { getAuthUser, logout } from '../api/client'
+import { canAccess } from '../access'
+const links = [
+  { to: '/workspace', label: 'Workspace', icon: LayoutDashboard },
+  { to: '/accounts', label: 'My Wallet', icon: Users },
+  { to: '/payments', label: 'Payments', icon: ArrowLeftRight },
+  { to: '/tokens', label: 'Tokens', icon: Coins },
+  { to: '/audit', label: 'Audit & Monitoring', icon: Activity },
+  { to: '/policies', label: 'Policies', icon: ShieldCheck },
+  { to: '/approvals', label: 'Approvals', icon: FileCheck2 },
+  { to: '/admin/users', label: 'Manage Users', icon: Users },
+  { to: '/settings', label: 'Settings', icon: Settings },
+]
+export default function Sidebar() {
+  const role = getAuthUser()?.role
+  const navigate = useNavigate()
+  return <aside className="sidebar">
+    <div className="brand"><Bot size={24}/><div><strong>Hedera</strong><span>Agent Platform</span></div></div>
+    <div className="workspace">{role} workspace</div>
+    <nav>{links.filter(link => canAccess(role, link.to)).map(({to, label, icon: Icon}) =>
+      <NavLink key={to} to={to} className={({isActive}) => isActive ? 'nav-link active' : 'nav-link'}><Icon size={17}/>{label}</NavLink>
+    )}</nav>
+    <div className="sidebar-bottom"><button className="button secondary" onClick={() => { void logout(); navigate('/login', {replace: true}) }}><LogOut size={17}/>Log out</button></div>
+  </aside>
+}

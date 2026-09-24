@@ -24,7 +24,7 @@ class PolicyStateEndpointTest {
 
   @Test
   void the_state_endpoint_publishes_the_envelopes_the_engine_decides_against() throws Exception {
-    MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+    MockMvc mockMvc = com.hedera.agentplatform.accounts.AuthenticatedMvc.admin(context);
 
     mockMvc
         .perform(get("/api/v1/policies/state"))
