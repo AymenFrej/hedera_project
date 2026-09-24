@@ -178,3 +178,7 @@ export type VerificationResult = {
   consensusTimestamp: string | null
   explorerUrl: string | null
 }
+
+export type PolicyRule = { ruleId: string; verdict: string; reason: string }
+export async function getPolicyRules(): Promise<PolicyRule[]> { return request('/policies') }
+export async function getAuditEvent(id: string): Promise<AuditEvent> { return request(`/audit/${encodeURIComponent(id)}`) }
