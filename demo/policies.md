@@ -47,17 +47,18 @@ Accounts interceptor, and the policy API is limited to two roles. Log in at
 
 ## The run, in five steps
 
-Sign in as ADMIN, then click **Reset the demo** first. The envelopes open at rent 500 /
-essentials 300 / emergency 200, and `landlord-tunis` is the one counterparty already paid before.
+Sign in as ADMIN, then click **Reset shared demo** first and accept the browser confirmation. The
+envelopes open at rent 500 / essentials 300 / emergency 200, and `landlord-tunis` is the one
+counterparty already paid before.
 (`/policies` and `/approvals` are hidden from USER and AUDITOR — signing in as the wrong role is
 the usual reason the pages look empty.)
 
 | # | Do this on `/policies` | What the audience sees |
 |---|---|---|
-| 1 | Spend **100** from **RENT** to `landlord-tunis` | Green **ALLOWED**, rule `policy.ok`. The rent card drops 500 → 400 on the spot |
-| 2 | Spend **9999** from **RENT** to `landlord-tunis` | Red **DENIED**, rule `funds.insufficient`, *"requested 9999 but rent holds 400"*. No approval is created |
-| 3 | Spend **50** from **EMERGENCY** to `landlord-tunis` | Amber **HELD FOR A HUMAN**, rule `emergency.human`. An approval id appears — the same counterparty that was waved through in step 1 |
-| 4 | Open `/approvals`, click **Approve** | The row becomes `APPROVED by admin_demo` — the signed-in human, named. Back on `/policies`, emergency reads 150 |
+| 1 | **Evaluate request** for **100** from **RENT** to `landlord-tunis` | Green **ALLOWED**, rule `policy.ok`. The rent card drops 500 → 400 on the spot |
+| 2 | Same form, amount **9999** | Red **DENIED**, rule `funds.insufficient`. No approval is created |
+| 3 | Same form, **50** from **EMERGENCY** | Amber **HELD FOR A HUMAN**, rule `emergency.human`, plus a *Review approval request* link — the same counterparty that was waved through in step 1 |
+| 4 | Follow that link, click **Approve**, accept the confirmation | The badge reads `APPROVED` and the row gains *Decided … by admin_demo* — the signed-in human, named. Back on `/policies`, hit **Refresh**: emergency reads 150 |
 | 5 | Click **Approve** on that same row again | `409` — *"was already approved"*. A question gets answered once |
 
 Step 2 is the one to slow down on: the same human who approves step 3 is given **no button** in
@@ -113,6 +114,6 @@ before seeing it applied rather than inferring it from one verdict after.
 `PolicyEngine.decide` is a pure static function; the backend suite runs it offline with no
 network and no SDK (`cd backend && ./mvnw test`).
 
-**"What if I run the demo twice?"** **Reset the demo** puts the envelopes back and clears the
+**"What if I run the demo twice?"** **Reset shared demo** puts the envelopes back and clears the
 queue. It deliberately does *not* touch the audit trail — a history you can wipe proves nothing, so
 the reset shows up in it too.
