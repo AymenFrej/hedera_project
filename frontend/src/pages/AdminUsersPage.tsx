@@ -11,10 +11,13 @@ export default function AdminUsersPage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('ALL')
   const [editing, setEditing] = useState<ManagedUser | null>(null)
   const [restoreRoles, setRestoreRoles] = useState<Record<string,string>>({})
   const self = getAuthUser<{userId:string}>()?.userId
-  async function load() { setUsers(await listManagedUsers()) }
+  async function load() { setLoading(true); try { setUsers(await listManagedUsers()) } finally { setLoading(false) } }
   useEffect(() => { load().catch(e => setError(e.message)) }, [])
   async function run(work: () => Promise<void>) {
     setBusy(true); setError(''); setMessage('')
@@ -47,8 +50,12 @@ export default function AdminUsersPage() {
       </form>
     </section>}
     <section className="data-panel admin-users"><h2>Existing users</h2>
-      <button className="button secondary" disabled={busy} onClick={() => void run(async () => {})}>Refresh users</button>
-      {users.map(user => {
+      <div className="feature-toolbar"><label>Search users<input type="search" placeholder="Name, email or wallet ID" value={search} onChange={e => setSearch(e.target.value)}/></label>
+        <label>Account status<select value={status} onChange={e => setStatus(e.target.value)}><option>ALL</option><option>ACTIVE</option><option>CLOSED</option></select></label>
+        <button className="button secondary" disabled={busy || loading} onClick={() => void run(async () => {})}>Refresh users</button></div>
+      {loading && <p role="status">Loading users…</p>}
+      {!loading && !users.some(user => (status === 'ALL' || (user.role === 'DISABLED' ? 'CLOSED' : 'ACTIVE') === status) && [user.email, user.displayName, user.hederaAccountId].some(value => value.toLowerCase().includes(search.toLowerCase()))) && <p>{error ? 'Users unavailable. Refresh to retry.' : 'No matching users.'}</p>}
+      {users.filter(user => (status === 'ALL' || (user.role === 'DISABLED' ? 'CLOSED' : 'ACTIVE') === status) && [user.email, user.displayName, user.hederaAccountId].some(value => value.toLowerCase().includes(search.toLowerCase()))).map(user => {
         const closed = user.role === 'DISABLED'
         return <div className="admin-user-row" key={user.id} style={{gridTemplateColumns:'minmax(180px,1fr) minmax(120px,160px) minmax(180px,2fr)'}}>
           <div><b>{user.displayName}</b><span>{user.email}</span><code>{user.hederaAccountId}</code>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Activity,
   CheckCircle2,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react'
 import {
   getAuthUser,
+  getAuditEvent,
   getAuditStatus,
   listAuditEvents,
   recordAuditEvent,
@@ -24,6 +26,10 @@ import {
 type VerificationState = { loading: boolean; result?: VerificationResult }
 
 export default function AuditPage() {
+  const [params, setParams] = useSearchParams()
+  const selected = params.get('event')
+  const [search, setSearch] = useState('')
+  const [anchorFilter, setAnchorFilter] = useState('ALL')
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [ledgerActive, setLedgerActive] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
@@ -33,8 +39,9 @@ export default function AuditPage() {
 
   const refresh = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
-      const [status, list] = await Promise.all([getAuditStatus(), listAuditEvents()])
+      const [status, list] = await Promise.all([getAuditStatus(), selected ? getAuditEvent(selected).then(event => [event]) : listAuditEvents()])
       setLedgerActive(status.ledgerActive)
       setEvents(list)
     } catch (e) {
@@ -42,21 +49,22 @@ export default function AuditPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [selected])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
 
   async function handleRecord() {
+    if (!window.confirm('Create a synthetic TEST_EVENT? When ledger mode is active this creates a permanent Hedera message and costs a transaction fee.')) return
     setRecording(true)
     setError(null)
     try {
       await recordAuditEvent({
-        agent: 'PaymentAgent',
-        action: 'TRANSFER',
+        agent: 'DeveloperConsole',
+        action: 'TEST_EVENT',
         status: 'SUCCESS',
-        metadata: { amount: '50', destination: '0.0.999' },
+        metadata: { synthetic: 'true' },
       })
       await refresh()
     } catch (e) {
@@ -91,6 +99,8 @@ export default function AuditPage() {
     }
   }
 
+  const visible = events.filter(event => (anchorFilter === 'ALL' || event.anchorStatus === anchorFilter) && [event.id, event.agent, event.action, event.actorId, event.status].some(value => value?.toLowerCase().includes(search.toLowerCase())))
+
   return (
     <>
       <div className="page-heading">
@@ -98,15 +108,14 @@ export default function AuditPage() {
           <p className="eyebrow">MODULE / AUDIT</p>
           <h1>Audit &amp; Monitoring</h1>
           <p className="subtitle">
-            Every agent action is written to a Hedera topic, then verified by reading it back from
-            the Mirror Node.
+            Inspect recorded events, anchoring status and Mirror Node verification. Local-only records are not Hedera proof.
           </p>
         </div>
         <div className="page-actions">
           <button className="button secondary" onClick={() => void refresh()} disabled={loading}>
             <RefreshCw size={15} /> Refresh
           </button>
-          {['ADMIN', 'PLATFORM'].includes(getAuthUser()?.role ?? '') && <button className="button primary" onClick={() => void handleRecord()} disabled={recording}>
+          {['ADMIN', 'PLATFORM'].includes(getAuthUser()?.role ?? '') && <button className="button primary" onClick={() => void handleRecord()} disabled={recording || loading}>
             {recording ? <Loader2 size={15} className="spin" /> : <Plus size={15} />}
             Record test event
           </button>}
@@ -116,7 +125,7 @@ export default function AuditPage() {
       <LedgerBanner ledgerActive={ledgerActive} />
 
       {error && (
-        <div className="audit-banner danger">
+        <div className="audit-banner danger" role="alert">
           <XCircle size={16} />
           <div>
             <b>{error}</b>
@@ -125,23 +134,29 @@ export default function AuditPage() {
         </div>
       )}
 
+      <div className="feature-toolbar">
+        <label>Search events<input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="ID, agent, action or actor"/></label>
+        <label>Anchoring<select value={anchorFilter} onChange={e => setAnchorFilter(e.target.value)}>{['ALL','ANCHORED','PENDING','FAILED'].map(value => <option key={value}>{value}</option>)}</select></label>
+        {selected && <button className="button secondary" onClick={() => setParams({})}>Show all events</button>}
+        <span>{visible.length} events</span>
+      </div>
       <div className="data-panel">
         {loading ? (
           <div className="empty-state">
             <Loader2 size={20} className="spin" />
             <p>Loading audit events…</p>
           </div>
-        ) : events.length === 0 ? (
+        ) : visible.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">
               <Activity size={20} />
             </div>
-            <p>No audit events yet.</p>
-            <span>Record one to see it anchored on Hedera.</span>
+            <p>{error ? 'Audit events unavailable. Refresh to retry.' : 'No matching audit events.'}</p>
+            <span>Events appear here when backend features record them.</span>
           </div>
         ) : (
           <div className="data-list">
-            {events.map((event) => (
+            {visible.map((event) => (
               <AuditRow
                 key={event.id}
                 event={event}
@@ -201,6 +216,7 @@ function AuditRow({
             <b>
               {event.agent} · {event.action}
             </b>
+            <span className="audit-meta">{event.id} · {event.status}</span>
             <span className="audit-meta">
               {event.createdAt ? new Date(event.createdAt).toLocaleString() : 'unknown date'}
               {event.sequenceNumber !== null && <> · seq {event.sequenceNumber}</>}
@@ -257,13 +273,13 @@ function AuditRow({
 
 function VerificationPanel({ result }: { result: VerificationResult }) {
   const mismatch =
-    !result.verified && result.storedHash !== null && result.ledgerHash !== null
+    !result.verified && result.storedHash !== null && result.ledgerHash !== null && result.storedHash !== result.ledgerHash
 
   return (
     <div className={`verification ${result.verified ? 'ok' : 'danger'}`}>
       <div className="verification-head">
         {result.verified ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-        <b>{result.verified ? 'Verified against the ledger' : 'Tampering detected'}</b>
+        <b>{result.verified ? 'Verified against the ledger' : mismatch ? 'Hash mismatch detected' : 'Verification not confirmed'}</b>
         {result.explorerUrl && (
           <a href={result.explorerUrl} target="_blank" rel="noreferrer" className="text-button">
             View on HashScan <ExternalLink size={13} />
@@ -275,7 +291,7 @@ function VerificationPanel({ result }: { result: VerificationResult }) {
       {mismatch ? (
         <div className="hash-compare">
           <div className="hash-side bad">
-            <span className="hash-label">In our database (altered)</span>
+            <span className="hash-label">Stored database hash</span>
             <code>{result.storedHash}</code>
             {result.storedPayload && <pre className="ledger-payload">{result.storedPayload}</pre>}
           </div>
