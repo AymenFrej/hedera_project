@@ -5,12 +5,16 @@ import { answerApproval, listApprovals, type ApprovalRequest } from '../api/clie
 export default function ApprovalsPage() {
   const [items, setItems] = useState<ApprovalRequest[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [errorTitle, setErrorTitle] = useState('Could not reach the approvals API')
   const [busy, setBusy] = useState<string | null>(null)
 
   function load() {
     listApprovals()
       .then(setItems)
-      .catch(e => setError(e instanceof Error ? e.message : 'Backend unreachable'))
+      .catch(e => {
+        setErrorTitle('Could not reach the approvals API')
+        setError(e instanceof Error ? e.message : 'Backend unreachable')
+      })
   }
 
   useEffect(load, [])
@@ -22,6 +26,7 @@ export default function ApprovalsPage() {
       const updated = await answerApproval(id, verdict)
       setItems(current => current.map(item => (item.id === id ? updated : item)))
     } catch (e) {
+      setErrorTitle('The policy engine refused this answer')
       setError(e instanceof Error ? e.message : 'Backend unreachable')
     } finally {
       setBusy(null)
@@ -42,10 +47,10 @@ export default function ApprovalsPage() {
       </div>
 
       {error && (
-        <div className="audit-banner danger">
+        <div className="audit-banner warn">
           <XCircle size={16} />
           <div>
-            <b>Could not reach the approvals API</b>
+            <b>{errorTitle}</b>
             <span>{error}</span>
           </div>
         </div>
