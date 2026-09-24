@@ -166,7 +166,7 @@ public class PaymentService {
     if (remaining >= keep) {
       return null;
     }
-    String asset = payment.tokenId == null ? "HBAR" : payment.tokenId;
+    String asset = decimals.symbol(payment.tokenId);
     return "Your condition: keep at least " + payment.keepAtLeast.stripTrailingZeros().toPlainString()
         + " " + asset + ", but only " + (remaining < 0 ? "0" : displayUnits(remaining, places))
         + " would remain";
@@ -675,6 +675,7 @@ public class PaymentService {
         p.id,
         p.amount == null ? null : p.amount.stripTrailingZeros().toPlainString(),
         p.currency,
+        decimals.symbol(p.tokenId),
         p.tokenId,
         p.destination,
         p.envelope,

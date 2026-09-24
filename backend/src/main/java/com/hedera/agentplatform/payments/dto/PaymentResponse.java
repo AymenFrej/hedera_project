@@ -6,6 +6,7 @@ public record PaymentResponse(
     String id,
     String amount,
     String currency,
+    String assetSymbol,
     String tokenId,
     String destination,
     String envelope,

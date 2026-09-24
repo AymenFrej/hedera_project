@@ -113,6 +113,13 @@ class PaymentPolicyIntegrationTest {
     assertThat(essentials()).isEqualTo(before - 10);
     assertThat(labels(held.id()))
         .contains("Policy evaluated: HOLD", "Approved by a reviewer", "Transfer simulated");
+    assertThat(receipts.receipt(held.id()).safety())
+        .filteredOn(r -> r.name().equals("Policy"))
+        .singleElement()
+        .satisfies(r -> {
+          assertThat(r.state()).isEqualTo("PASS");
+          assertThat(r.detail()).contains("then approved by a reviewer");
+        });
   }
 
   @Test

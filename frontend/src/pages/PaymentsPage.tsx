@@ -410,7 +410,7 @@ function PaymentRow({
           </div>
           <div>
             <b>
-              {p.amount} {p.currency === 'HBAR' ? 'ℏ' : symbolOf(p.tokenId)} → {p.destination}
+              {p.amount} {p.currency === 'HBAR' ? 'ℏ' : p.assetSymbol ?? symbolOf(p.tokenId)} → {p.destination}
             </b>
             <span className="audit-meta">
               {p.envelope ? `${p.envelope} · ` : ''}

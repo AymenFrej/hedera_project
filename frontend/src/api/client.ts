@@ -298,6 +298,8 @@ export type Payment = {
   amount: string
   /** "HBAR", or the HTS token id. */
   currency: string
+  /** How a person writes it: "HBAR" or the token symbol (falls back to the token id). */
+  assetSymbol: string
   tokenId: string | null
   destination: string
   envelope: string | null

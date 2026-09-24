@@ -170,13 +170,18 @@ public class PaymentReceiptService {
     if (why == null || "policy.none".equals(p.policyRuleId())) {
       rows.add(new SafetyRow("Policy", "UNKNOWN", "No policy engine decided on this payment"));
     } else {
-      rows.add(new SafetyRow("Policy",
-          switch (why.verdict()) {
-            case "ALLOW" -> "PASS";
-            case "HOLD" -> "WAITING";
-            default -> "FAIL";
-          },
-          why.verdict() + " · " + why.ruleId() + " · " + why.reason()));
+      String rule = why.verdict() + " · " + why.ruleId() + " · " + why.reason();
+      SafetyRow approval = approvalRow(p, events);
+      rows.add(switch (why.verdict()) {
+        case "ALLOW" -> new SafetyRow("Policy", "PASS", rule);
+        case "HOLD" -> switch (approval.state()) {
+          // A HOLD is settled by the reviewer's answer.
+          case "PASS" -> new SafetyRow("Policy", "PASS", rule + ", then approved by a reviewer");
+          case "FAIL" -> new SafetyRow("Policy", "FAIL", rule + ", then " + approval.detail().toLowerCase());
+          default -> new SafetyRow("Policy", "WAITING", rule);
+        };
+        default -> new SafetyRow("Policy", "FAIL", rule);
+      });
       if (why.envelope() != null) {
         rows.add(why.shortfall() != null
             ? new SafetyRow("Envelope", "FAIL", why.envelope().toLowerCase()
@@ -347,7 +352,7 @@ public class PaymentReceiptService {
 
   private static List<Step> timeline(PaymentResponse p, List<AuditEventEntity> events) {
     List<Step> steps = new ArrayList<>();
-    String asset = "HBAR".equals(p.currency()) ? "ℏ" : p.currency();
+    String asset = "HBAR".equals(p.currency()) ? "ℏ" : p.assetSymbol();
     steps.add(
         new Step(
             "Payment requested",

@@ -117,7 +117,7 @@ export default function PaymentResultPanel({
   }
 
   const p = receipt.payment
-  const asset = p.currency === 'HBAR' ? 'ℏ' : p.currency
+  const asset = p.currency === 'HBAR' ? 'ℏ' : p.assetSymbol
   const allAudit = Object.values(proofs)
   const auditVerified = allAudit.length > 0 && allAudit.every((a) => a.verified === true)
 
