@@ -286,6 +286,23 @@ export type IntentUnderstanding = {
   problems: string[]
 }
 
+/** What became of a sentence: what the language model read, then what the application resolved. */
+export type SentenceInterpretation = {
+  /** false when no language model is configured on the backend. */
+  available: boolean
+  detail: string | null
+  /** The model that read the sentence. */
+  source: string | null
+  intent: PaymentIntent | null
+  clarification: string | null
+  understanding: IntentUnderstanding | null
+}
+
+/** The language model only proposes fields; the backend resolves and checks them like a form. */
+export async function interpretSentence(text: string): Promise<SentenceInterpretation> {
+  return request('/payments/intent/interpret', { method: 'POST', body: JSON.stringify({ text }) })
+}
+
 /** Resolves each field of an intent on the backend, with where each value came from. */
 export async function understandIntent(intent: PaymentIntent): Promise<IntentUnderstanding> {
   return request('/payments/intent/understand', { method: 'POST', body: JSON.stringify(intent) })

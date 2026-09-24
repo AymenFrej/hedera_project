@@ -59,6 +59,12 @@
             <version>1.83.1</version>
             <scope>runtime</scope>
         </dependency>
+        <!-- Claude API: turns a payment sentence into a structured PaymentIntent (never a transaction). -->
+        <dependency>
+            <groupId>com.anthropic</groupId>
+            <artifactId>anthropic-java</artifactId>
+            <version>2.34.0</version>
+        </dependency>
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>

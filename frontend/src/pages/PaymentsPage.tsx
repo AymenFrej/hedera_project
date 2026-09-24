@@ -34,6 +34,7 @@ import {
 } from '../api/client'
 import PaymentResultPanel from '../modules/payments/PaymentResultPanel'
 import IntentComposer from '../modules/payments/IntentComposer'
+import SentenceBox from '../modules/payments/SentenceBox'
 
 const ENVELOPES = ['', 'RENT', 'ESSENTIALS', 'EMERGENCY']
 
@@ -318,6 +319,8 @@ export default function PaymentsPage() {
           </div>
         </form>
       )}
+
+      <SentenceBox onPreview={(request) => void previewRequest(request)} previewing={previewing} />
 
       <IntentComposer
         contacts={contacts}

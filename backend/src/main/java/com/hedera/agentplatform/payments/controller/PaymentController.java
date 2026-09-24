@@ -11,6 +11,8 @@ import com.hedera.agentplatform.payments.entity.ContactEntity;
 import com.hedera.agentplatform.payments.dto.PaymentReceipt;
 import com.hedera.agentplatform.payments.dto.PaymentResponse;
 import com.hedera.agentplatform.payments.dto.PaymentVerification;
+import com.hedera.agentplatform.payments.language.SentenceInterpretation;
+import com.hedera.agentplatform.payments.language.SentenceService;
 import com.hedera.agentplatform.payments.service.ContactService;
 import com.hedera.agentplatform.payments.service.IntentService;
 import com.hedera.agentplatform.payments.service.PaymentPreviewService;
@@ -34,6 +36,7 @@ public class PaymentController {
   private final PaymentReceiptService receipts;
   private final IntentService intents;
   private final ContactService contacts;
+  private final SentenceService sentences;
   private final String demoTokenId;
   private final String demoRecipientId;
 
@@ -44,6 +47,7 @@ public class PaymentController {
       PaymentReceiptService receipts,
       IntentService intents,
       ContactService contacts,
+      SentenceService sentences,
       @Value("${payments.demo-token-id:}") String demoTokenId,
       @Value("${payments.demo-recipient-id:}") String demoRecipientId) {
     this.service = service;
@@ -52,6 +56,7 @@ public class PaymentController {
     this.receipts = receipts;
     this.intents = intents;
     this.contacts = contacts;
+    this.sentences = sentences;
     this.demoTokenId = demoTokenId.isBlank() ? null : demoTokenId.trim();
     this.demoRecipientId = demoRecipientId.isBlank() ? null : demoRecipientId.trim();
   }
@@ -92,6 +97,16 @@ public class PaymentController {
   @PostMapping("/intent/understand")
   public IntentUnderstanding understand(@RequestBody PaymentIntent intent) {
     return intents.understand(intent);
+  }
+
+  /**
+   * Reads a sentence ("Pay Zied 5 PAYTEST, keep at least 10") with the language model and resolves
+   * what it read like any other request. The model only proposes fields; nothing is recorded or
+   * sent.
+   */
+  @PostMapping("/intent/interpret")
+  public SentenceInterpretation interpret(@RequestBody Map<String, String> body) {
+    return sentences.interpret(body.get("text"));
   }
 
   @GetMapping("/contacts")

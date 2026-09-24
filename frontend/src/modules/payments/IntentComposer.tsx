@@ -69,7 +69,7 @@ export default function IntentComposer({
           <p className="eyebrow">
             <Brain size={11} /> PAYMENT REQUEST
           </p>
-          <h3>What do you want to pay?</h3>
+          <h3>Manual request</h3>
         </div>
         <button type="button" className="text-button" onClick={() => setShowContacts((v) => !v)}>
           <BookUser size={13} /> Contacts ({contacts.length})
@@ -129,8 +129,8 @@ export default function IntentComposer({
         </datalist>
       </form>
       <span className="audit-meta">
-        Each blank is a field of the payment request. Free-text requests will come with the AI
-        orchestrator, which will produce this same request.
+        Each blank is a field of the same request the sentence box produces. Use it when no language
+        model is configured, or to fill a request field by field.
       </span>
 
       {error && (
@@ -144,40 +144,59 @@ export default function IntentComposer({
       )}
 
       {understanding && (
-        <div className={`understanding ${understanding.understood ? 'ok' : 'danger'}`}>
-          <p className="eyebrow">UNDERSTANDING YOUR REQUEST</p>
-          <ul>
-            {understanding.steps.map((s) => (
-              <li key={s.field}>
-                {s.value ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
-                <b>{s.field}</b>
-                <span>
-                  {s.input} → {s.value ?? 'not resolved'}
-                </span>
-                <em>{s.source}</em>
-              </li>
-            ))}
-          </ul>
-          {understanding.problems.map((p) => (
-            <div key={p} className="problem">
-              {p}
-            </div>
-          ))}
-          {understanding.understood && understanding.request && (
-            <button
-              type="button"
-              className="button primary"
-              disabled={previewing}
-              onClick={() => understanding.request && onPreview(understanding.request)}
-            >
-              {previewing ? <Loader2 size={15} className="spin" /> : <Eye size={15} />} Preview
-              transaction
-            </button>
-          )}
-        </div>
+        <UnderstandingCard
+          understanding={understanding}
+          previewing={previewing}
+          onPreview={onPreview}
+        />
       )}
 
       {showContacts && <ContactBook contacts={contacts} onChanged={onContactsChanged} />}
+    </div>
+  )
+}
+
+/** Each field of the request, what it resolved to and from where; then Preview when complete. */
+export function UnderstandingCard({
+  understanding,
+  previewing,
+  onPreview,
+}: {
+  understanding: IntentUnderstanding
+  previewing: boolean
+  onPreview: (request: CreatePaymentRequest) => void
+}) {
+  return (
+    <div className={`understanding ${understanding.understood ? 'ok' : 'danger'}`}>
+      <p className="eyebrow">UNDERSTANDING YOUR REQUEST</p>
+      <ul>
+        {understanding.steps.map((s) => (
+          <li key={s.field}>
+            {s.value ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+            <b>{s.field}</b>
+            <span>
+              {s.input} → {s.value ?? 'not resolved'}
+            </span>
+            <em>{s.source}</em>
+          </li>
+        ))}
+      </ul>
+      {understanding.problems.map((p) => (
+        <div key={p} className="problem">
+          {p}
+        </div>
+      ))}
+      {understanding.understood && understanding.request && (
+        <button
+          type="button"
+          className="button primary"
+          disabled={previewing}
+          onClick={() => understanding.request && onPreview(understanding.request)}
+        >
+          {previewing ? <Loader2 size={15} className="spin" /> : <Eye size={15} />} Preview
+          transaction
+        </button>
+      )}
     </div>
   )
 }
