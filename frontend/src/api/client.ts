@@ -68,6 +68,11 @@ export async function getPolicyState(): Promise<PolicyStateResponse> {
   return request('/policies/state')
 }
 
+/** Puts the demo back to its opening balances. The audit trail is never cleared. */
+export async function resetDemo(): Promise<PolicyStateResponse> {
+  return request('/policies/demo/reset', { method: 'POST' })
+}
+
 /** Submits a spend to the deterministic rule engine. Never decides client-side. */
 export async function decideSpend(body: DecideRequest): Promise<DecideResponse> {
   return request('/policies/decide', { method: 'POST', body: JSON.stringify(body) })
