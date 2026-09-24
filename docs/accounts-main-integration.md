@@ -1,6 +1,6 @@
 # Accounts branch integration
 
-The Accounts branch includes main through PR #30 and preserves its Policies, Approvals,
+The Accounts branch includes main through PR #32 and preserves its Policies, Approvals,
 audit APIs, error messages and styles. Login is now required for the protected UI and APIs.
 See [account-access.md](account-access.md) for the role matrix and account lifecycle.
 

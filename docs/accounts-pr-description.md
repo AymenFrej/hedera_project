@@ -6,11 +6,12 @@ feat(accounts): email accounts, wallet assignment and role-based management
 
 - Add email registration/login, backend sessions and per-user wallet assignment.
 - Add profile/password settings, logout, wallet ID display and app-account closure.
-- Let administrators create users, change roles and close accounts.
+- Let administrators create/edit users, change roles, close/restore accounts, permanently remove
+  closed mock records without keys, and upgrade mock accounts to real wallets.
 - Enforce permissions in APIs, page routes and navigation; revoke sessions on password,
   role or account-status changes.
 - Resolve audit actors from the signed-in session while keeping platform-signed audit writes.
-- Integrate main through PR #30, preserving the real Policies/Approvals pages and latest fixes.
+- Integrate main through PR #32, preserving the real Policies/Approvals pages and latest fixes.
 - Preserve main's migrations V1-V5 and add Accounts as V6-V8.
 
 ## Verification
