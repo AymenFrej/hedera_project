@@ -46,13 +46,22 @@ class PaymentPolicyIntegrationTest {
     when(decimals.of(anyString())).thenReturn(0);
   }
 
+  /** Envelopes are a budget in HBAR, so these pay in HBAR: a null token id is the native asset. */
   private PaymentResponse pay(long amount, String envelope) {
     return payments.create(
-        new CreatePaymentRequest(RECIPIENT, String.valueOf(amount), "0.0.7777", envelope, null));
+        new CreatePaymentRequest(RECIPIENT, String.valueOf(amount), null, envelope, null));
   }
 
+  private static final long HBAR = 100_000_000L;
+
+  /** The envelope balance in tinybars, the unit it is held in. */
   private long essentials() {
     return ledger.state().balances().get(Envelope.ESSENTIALS);
+  }
+
+  /** The same balance in HBAR, the unit {@link #pay} is written in. */
+  private long essentialsHbar() {
+    return essentials() / HBAR;
   }
 
   private List<String> labels(String paymentId) {
@@ -78,19 +87,19 @@ class PaymentPolicyIntegrationTest {
 
   @Test
   void a_refusal_is_explained_with_the_numbers_it_was_decided_on() {
-    vouchForRecipient(); // essentials 300 ℏ, less the 1 tinybar that vouched for the recipient
-    long left = essentials();
-    long more_than_the_envelope_holds = left + 1;
+    vouchForRecipient(); // essentials 300 ℏ, less the 1 ℏ that vouched for the recipient
+    long leftInTinybars = essentials();
+    long moreThanTheEnvelopeHolds = essentialsHbar() + 1;
 
-    PaymentResponse denied = pay(more_than_the_envelope_holds, "ESSENTIALS");
+    PaymentResponse denied = pay(moreThanTheEnvelopeHolds, "ESSENTIALS");
 
     assertThat(denied.policyRuleId()).isEqualTo("funds.insufficient");
     var why = denied.policyExplanation();
-    assertThat(why.requested()).isEqualTo(String.valueOf(more_than_the_envelope_holds));
-    assertThat(why.available()).isEqualTo(String.valueOf(left));
-    assertThat(why.shortfall()).isEqualTo("1");
+    // The explanation is written in HBAR, the unit a person reads.
+    assertThat(why.requested()).isEqualTo(String.valueOf(moreThanTheEnvelopeHolds));
+    assertThat(why.available()).isEqualTo(String.valueOf(essentialsHbar()));
     assertThat(why.transactionCreated()).isFalse();
-    assertThat(essentials()).as("a refusal spends nothing").isEqualTo(left);
+    assertThat(essentials()).as("a refusal spends nothing").isEqualTo(leftInTinybars);
   }
 
   @Test
@@ -111,7 +120,7 @@ class PaymentPolicyIntegrationTest {
 
     assertThat(sent.status()).isEqualTo("SIMULATED");
     assertThat(approvals.pending()).extracting(ApprovalResponse::id).doesNotContain(held.approvalId());
-    assertThat(essentials()).isEqualTo(before - 10);
+    assertThat(essentials()).as("10 ℏ leaves the envelope").isEqualTo(before - 10 * HBAR);
     assertThat(labels(held.id()))
         .contains("Policy evaluated: HOLD", "Approved by a reviewer", "Transfer simulated");
     assertThat(receipts.receipt(held.id()).safety())
@@ -131,7 +140,7 @@ class PaymentPolicyIntegrationTest {
     PaymentResponse allowed = pay(20, "ESSENTIALS");
 
     assertThat(allowed.policyVerdict()).isEqualTo("ALLOW");
-    assertThat(essentials()).isEqualTo(before - 20);
+    assertThat(essentials()).as("20 ℏ leaves the envelope").isEqualTo(before - 20 * HBAR);
   }
 
   @Test

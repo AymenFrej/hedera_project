@@ -19,6 +19,13 @@ public class ApprovalEntity {
 
   public String status;
 
+  /**
+   * What was being moved. Envelopes are a budget in HBAR, so approving a token payment must not
+   * debit one — and must not be refused for lacking tinybars.
+   */
+  @Column(name = "asset")
+  public String asset;
+
   @Column(name = "requested_at")
   public Instant requestedAt;
 
