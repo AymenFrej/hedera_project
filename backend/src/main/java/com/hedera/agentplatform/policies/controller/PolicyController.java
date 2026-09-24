@@ -42,6 +42,13 @@ public class PolicyController {
     return new StateResponse(envelopes, current.knownCounterparties());
   }
 
+  /** Puts the demo back to its opening position so it can be run again. Audit history is kept. */
+  @PostMapping("/demo/reset")
+  public StateResponse resetDemo() {
+    ledger.reset();
+    return state();
+  }
+
   @PostMapping("/decide")
   public DecideResponse decide(@RequestBody DecideRequest body) {
     ApprovalService.Submission submission =
