@@ -31,7 +31,8 @@ public class SentenceService {
     IntentExtractor extractor = extractors.getIfAvailable();
     if (extractor == null) {
       return new SentenceInterpretation(false,
-          "No language model is configured (ANTHROPIC_API_KEY): use the manual request instead.",
+          "No language model is configured (PAYMENT_AI_PROVIDER: claude, gemini or ollama):"
+              + " use the manual request instead.",
           null, null, null, null);
     }
     String text = sentence == null ? "" : sentence.trim();
