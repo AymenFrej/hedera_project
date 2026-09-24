@@ -73,6 +73,34 @@ export async function decideSpend(body: DecideRequest): Promise<DecideResponse> 
   return request('/policies/decide', { method: 'POST', body: JSON.stringify(body) })
 }
 
+/** The queue of HOLD decisions waiting for a human, newest first. */
+export async function listApprovals(): Promise<ApprovalRequest[]> {
+  return request('/policies/approvals')
+}
+
+/** Records a human's answer. 409 if the request was already settled. */
+export async function answerApproval(
+  id: string,
+  answer: 'approve' | 'reject',
+): Promise<ApprovalRequest> {
+  return request(`/policies/approvals/${encodeURIComponent(id)}/${answer}`, { method: 'POST' })
+}
+
+export type ApprovalRequest = {
+  id: string
+  /** Audit event id of the decision that produced this request. */
+  taskId: string | null
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  ruleId: string
+  reason: string
+  envelope: string | null
+  amount: number | null
+  counterparty: string | null
+  requestedAt: string | null
+  decidedAt: string | null
+  decidedBy: string | null
+}
+
 export type PolicyStateResponse = {
   envelopes: Record<string, number>
   knownCounterparties: string[]
