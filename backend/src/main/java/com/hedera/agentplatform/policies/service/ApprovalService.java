@@ -51,7 +51,8 @@ public class ApprovalService {
    *
    * @param approval null for ALLOW and DENY, which need no human
    */
-  public record Submission(PolicyDecision decision, ApprovalResponse approval) {}
+  public record Submission(
+      PolicyDecision decision, ApprovalResponse approval, String auditEventId, boolean anchored) {}
 
   public Submission submit(PolicyRequest request, PolicyState state) {
     PolicyDecisionService.RecordedDecision recorded = decisions.decide(request, state);
@@ -61,7 +62,7 @@ public class ApprovalService {
       if (decision.verdict() == Verdict.ALLOW) {
         ledger.debit(request.envelope(), request.amount());
       }
-      return new Submission(decision, null);
+      return new Submission(decision, null, recorded.auditEvent().id, recorded.anchored());
     }
 
     ApprovalEntity entity = new ApprovalEntity();
@@ -75,7 +76,8 @@ public class ApprovalService {
     entity.amount = request.amount();
     entity.counterparty = request.counterparty();
 
-    return new Submission(decision, toResponse(repository.save(entity)));
+    return new Submission(
+        decision, toResponse(repository.save(entity)), recorded.auditEvent().id, recorded.anchored());
   }
 
   /** Records a human's approval of a pending request. The answer is itself an audit event. */
