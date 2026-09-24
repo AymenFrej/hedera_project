@@ -60,7 +60,7 @@ export default function PoliciesPage() {
       </form>
       {state && <p className="feature-note">Known counterparties: {state.knownCounterparties.join(', ') || 'None'}</p>}
       {decision && <div className={`verdict-card ${decision.verdict === 'ALLOW' ? 'ok' : decision.verdict === 'HOLD' ? 'warn' : 'danger'}`} role="status">
-        <h2>{decision.verdict}</h2><code>{decision.ruleId}</code><p>{decision.reason}</p>
+        <h2>{{ ALLOW: 'ALLOWED', HOLD: 'HELD FOR A HUMAN', DENY: 'DENIED' }[decision.verdict]}</h2><code>{decision.ruleId}</code><p>{decision.reason}</p>
         {decision.balanceAfter !== null && <p>Remaining demo budget: {decision.balanceAfter}</p>}
         {decision.approvalId && <p><Link to={`/approvals?request=${encodeURIComponent(decision.approvalId)}`}>Review approval request</Link></p>}
         {decision.auditEventId && <p><Link to={`/audit?event=${encodeURIComponent(decision.auditEventId)}`}>View audit event</Link> — {decision.anchored ? 'Anchored on Hedera' : 'Not yet anchored'}</p>}
