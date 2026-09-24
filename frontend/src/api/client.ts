@@ -7,7 +7,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!response.ok) {
     const body = await response.text()
-    throw new Error(body || `${response.status} ${response.statusText}`)
+    // A refused action answers with {"error": "..."} — show that sentence, not raw JSON.
+    let message = body
+    try {
+      message = (JSON.parse(body).error as string) ?? body
+    } catch {
+      /* not JSON: keep the raw body */
+    }
+    throw new Error(message || `${response.status} ${response.statusText}`)
   }
   return response.json() as Promise<T>
 }
