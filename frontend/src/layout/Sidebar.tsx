@@ -5,6 +5,7 @@ import { canAccess } from '../access'
 const links = [
   { to: '/workspace', label: 'Workspace', icon: LayoutDashboard },
   { to: '/accounts', label: 'My Wallet', icon: Users },
+  { to: '/assistant', label: 'AI Assistant', icon: Bot },
   { to: '/payments', label: 'Payments', icon: ArrowLeftRight },
   { to: '/tokens', label: 'Tokens', icon: Coins },
   { to: '/audit', label: 'Audit & Monitoring', icon: Activity },

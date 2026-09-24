@@ -10,6 +10,7 @@ import RolePage from './pages/RolePage'
 import SettingsPage from './pages/SettingsPage'
 import AdminUsersPage from './pages/AdminUsersPage'
 import AccountsPage from './pages/AccountsPage'
+import AssistantPage from './pages/AssistantPage'
 import { apiRequest, clearAuthToken, getAuthToken, getAuthUser, setAuthToken } from './api/client'
 import { canAccess } from './access'
 function Protected() {
@@ -39,6 +40,7 @@ export default function App() {
       <Route path="/settings" element={<SettingsPage/>}/>
       <Route path="/admin/users" element={<AdminUsersPage/>}/>
       <Route path="/accounts" element={<AccountsPage/>}/>
+      <Route path="/assistant" element={<AssistantPage/>}/>
       <Route path="/payments" element={<FeaturePage kind="payments"/>}/>
       <Route path="/tokens" element={<FeaturePage kind="tokens"/>}/>
       <Route path="/audit" element={<AuditPage/>}/>
