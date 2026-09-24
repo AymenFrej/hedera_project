@@ -1,5 +1,20 @@
 # Hedera Agent Platform
 
+## Accounts integration
+
+This branch adds email login, wallet assignment, profile/password settings, role-based navigation
+and administrator user management. Policies and Approvals from main remain available to authorized
+roles. Start at /login; the protected pages now require a running backend.
+
+Before using an existing Accounts-branch database, read
+[the migration compatibility notes](docs/accounts-main-integration.md). Main's V1-V5 migrations
+are preserved; Accounts uses V6-V8. Older Accounts databases need a separately reviewed history
+upgrade; do not reset them or change the wallet-key encryption secret.
+
+See [account permissions and tests](docs/account-access.md). The starter overview below describes
+the original template; real account creation and HCS writes can now occur when Hedera credentials
+are configured. Treat seeded demo users and authentication as development-only, not production-ready.
+
 > **This is a starter template.** Most Hedera, AI, and business behavior is intentionally mocked so five developers can work in parallel on complete vertical features.
 
 ## Project idea

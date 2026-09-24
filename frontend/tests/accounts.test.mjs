@@ -68,3 +68,12 @@ test('profile response refreshes the stored user', async () => {
   await client.updateProfile('new@example.test','New')
   assert.equal(client.getAuthUser().displayName,'New')
 })
+test('policy refusal keeps main error message and authenticated session', async () => {
+  globalThis.fetch = async (_url, options) => {
+    assert.equal(options.headers.Authorization,'Bearer test-token')
+    return new Response('{"error":"Approval was already approved"}', {status:409})
+  }
+  await assert.rejects(client.answerApproval('approval_test','approve'), /Approval was already approved/)
+  assert.equal(client.getAuthToken(),'test-token')
+  assert.deepEqual(redirects,[])
+})

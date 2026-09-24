@@ -53,3 +53,20 @@
 .settings-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:15px}.settings-card{padding:23px}.settings-card h2{font-size:15px;margin:0 0 8px}.settings-card p{font-size:11px;color:#7d879c;line-height:1.5}.settings-card form{display:flex;flex-direction:column;gap:13px;margin-top:18px}.settings-card label{display:flex;flex-direction:column;gap:6px;color:#9da6b9;font-size:11px}.settings-card input{border:1px solid #2c3241;background:#171b26;color:#d7dce8;border-radius:6px;padding:10px;font-family:inherit;font-size:11px;outline:none}.settings-card code{display:block;color:#a898fa;background:#17152a;border:1px solid #3a315d;padding:11px;border-radius:6px;font-family:'DM Mono';font-size:11px;margin:18px 0}.wallet-card{grid-column:span 2}.wallet-card .button{margin-right:8px}.danger-button{height:32px;padding:0 13px;border-radius:6px;border:1px solid #713640;background:#351d25;color:#f19aa4;font:11px Manrope;cursor:pointer}.auth-success{padding:11px;border-radius:7px;background:#11251c;border:1px solid #1f4a35;color:#7ee0ac;font-size:11px;margin-bottom:15px}.settings-message{margin-bottom:15px}
 .wallet-id-label{font:9px 'DM Mono';letter-spacing:1px;color:#737d93}.wallet-id{font-size:16px!important;letter-spacing:.4px}.wallet-meta{color:#7d879c;font-size:11px;margin:-7px 0 18px}.wallet-meta b{color:#d5dbea}
 .admin-create{max-width:700px;margin-bottom:18px}.admin-create form{display:grid;grid-template-columns:1fr 1fr;gap:13px}.admin-create form label:last-of-type{grid-column:span 2}.admin-create form button{width:max-content}.settings-card select,.admin-user-row select{border:1px solid #2c3241;background:#171b26;color:#d7dce8;border-radius:6px;padding:9px;font:11px Manrope}.admin-users{padding:20px}.admin-users-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}.admin-users h2{font-size:15px;margin:0}.admin-users-head span{font-size:10px;color:#7d879c}.admin-user-row{display:grid;grid-template-columns:1fr 120px 80px;align-items:center;gap:12px;padding:14px 0;border-top:1px solid #222837}.admin-user-row b,.admin-user-row span,.admin-user-row code{display:block}.admin-user-row b{font-size:11px}.admin-user-row span{font-size:10px;color:#7d879c;margin-top:3px}.admin-user-row code{font:9px 'DM Mono';color:#a898fa;margin-top:5px}
+
+/* --- Policies page ------------------------------------------------------ */
+.envelope-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.envelope-card{padding:15px 17px;border:1px solid #1d222e;border-radius:10px;background:#12151d;display:flex;flex-direction:column;gap:4px}
+.envelope-card strong{font-size:24px;letter-spacing:-.5px}
+.envelope-note{font-size:10px;color:#6d7488}
+.decide-form{display:grid;grid-template-columns:150px 140px 1fr auto;gap:13px;align-items:end}
+.decide-form label{display:flex;flex-direction:column;gap:6px;min-width:0}
+.decide-form input,.decide-form select{height:36px;padding:0 11px;border-radius:8px;border:1px solid #262b39;background:#0d1017;color:#e9ecf4;font-family:inherit;font-size:12px}
+.decide-form input:focus,.decide-form select:focus{outline:none;border-color:#5c46d5}
+.verdict-card{margin-top:18px;padding:15px 17px;border-radius:10px;border:1px solid}
+.verdict-card.ok{background:#11251c;border-color:#1f4a35;color:#7ee0ac}
+.verdict-card.warn{background:#2a2214;border-color:#59431d;color:#e8bd6b}
+.verdict-card.danger{background:#2a1618;border-color:#5c2429;color:#f28b93}
+.verdict-card p{margin:9px 0 0;font-size:12px;color:#c8cedd;line-height:1.55}
+.verdict-card .audit-meta{margin-top:6px}
+.rule-id{margin-left:auto;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;padding:3px 8px;border-radius:5px;background:#0d101788;color:#c8cedd}

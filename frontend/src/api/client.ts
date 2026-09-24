@@ -90,6 +90,76 @@ export type RecordAuditEventRequest = {
   metadata?: Record<string, string>
 }
 
+/** The demo budget the policy engine decides against. */
+export async function getPolicyState(): Promise<PolicyStateResponse> {
+  return request('/policies/state')
+}
+
+/** Puts the demo back to its opening balances. The audit trail is never cleared. */
+export async function resetDemo(): Promise<PolicyStateResponse> {
+  return request('/policies/demo/reset', { method: 'POST' })
+}
+
+/** Submits a spend to the deterministic rule engine. Never decides client-side. */
+export async function decideSpend(body: DecideRequest): Promise<DecideResponse> {
+  return request('/policies/decide', { method: 'POST', body: JSON.stringify(body) })
+}
+
+/** The queue of HOLD decisions waiting for a human, newest first. */
+export async function listApprovals(): Promise<ApprovalRequest[]> {
+  return request('/policies/approvals')
+}
+
+/** Records a human's answer. 409 if the request was already settled. */
+export async function answerApproval(
+  id: string,
+  answer: 'approve' | 'reject',
+): Promise<ApprovalRequest> {
+  return request(`/policies/approvals/${encodeURIComponent(id)}/${answer}`, { method: 'POST' })
+}
+
+export type ApprovalRequest = {
+  id: string
+  /** Audit event id of the decision that produced this request. */
+  taskId: string | null
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  ruleId: string
+  reason: string
+  envelope: string | null
+  amount: number | null
+  counterparty: string | null
+  requestedAt: string | null
+  decidedAt: string | null
+  decidedBy: string | null
+}
+
+export type PolicyStateResponse = {
+  envelopes: Record<string, number>
+  knownCounterparties: string[]
+}
+
+export type DecideRequest = {
+  envelope: string
+  amount: number
+  counterparty: string
+}
+
+export type Verdict = 'ALLOW' | 'HOLD' | 'DENY'
+
+export type DecideResponse = {
+  verdict: Verdict
+  /** Stable rule identifier, e.g. "amount.large". Survives rewording of the reason. */
+  ruleId: string
+  reason: string
+  balanceAfter: number | null
+  /** Present only for HOLD: the handle a human uses to settle the request. */
+  approvalId: string | null
+  /** The audit event this decision wrote. Open it on /audit to see the proof. */
+  auditEventId: string | null
+  /** False when the decision never reached the ledger — shown rather than implied. */
+  anchored: boolean
+}
+
 export type VerificationResult = {
   verified: boolean
   detail: string

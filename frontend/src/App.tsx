@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import AppShell from './layout/AppShell'
 import FeaturePage from './pages/FeaturePage'
+import PoliciesPage from './pages/PoliciesPage'
+import ApprovalsPage from './pages/ApprovalsPage'
 import AuditPage from './pages/AuditPage'
 import AuthPage from './pages/AuthPage'
 import RolePage from './pages/RolePage'
@@ -40,8 +42,8 @@ export default function App() {
       <Route path="/payments" element={<FeaturePage kind="payments"/>}/>
       <Route path="/tokens" element={<FeaturePage kind="tokens"/>}/>
       <Route path="/audit" element={<AuditPage/>}/>
-      <Route path="/policies" element={<FeaturePage kind="policies"/>}/>
-      <Route path="/approvals" element={<FeaturePage kind="approvals"/>}/>
+      <Route path="/policies" element={<PoliciesPage/>}/>
+      <Route path="/approvals" element={<ApprovalsPage/>}/>
     </Route>
     <Route path="*" element={<Navigate to="/workspace" replace/>}/>
   </Routes>

@@ -65,6 +65,8 @@ class AccountsAccessTest {
                 .andExpect(status().is(role.equals("USER") || role.equals("ADMIN") ? 200 : 403));
             if (!manager) {
                 mvc.perform(get("/api/v1/policies").header("Authorization",auth(user))).andExpect(status().isForbidden());
+                mvc.perform(post("/api/v1/policies/demo/reset").header("Authorization",auth(user))).andExpect(status().isForbidden());
+                mvc.perform(post("/api/v1/policies/approvals/test/approve").header("Authorization",auth(user))).andExpect(status().isForbidden());
                 mvc.perform(post("/api/v1/audit").header("Authorization",auth(user)).contentType("application/json").content("{}"))
                     .andExpect(status().isForbidden());
             }
