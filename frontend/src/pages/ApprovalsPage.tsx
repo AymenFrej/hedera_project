@@ -1,117 +1,51 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle2, FileCheck2, XCircle } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { answerApproval, listApprovals, type ApprovalRequest } from '../api/client'
 
 export default function ApprovalsPage() {
   const [items, setItems] = useState<ApprovalRequest[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [errorTitle, setErrorTitle] = useState('Could not reach the approvals API')
-  const [busy, setBusy] = useState<string | null>(null)
-
-  function load() {
-    listApprovals()
-      .then(setItems)
-      .catch(e => {
-        setErrorTitle('Could not reach the approvals API')
-        setError(e instanceof Error ? e.message : 'Backend unreachable')
-      })
+  const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('ALL')
+  const [params, setParams] = useSearchParams()
+  const selected = params.get('request')
+  async function load() {
+    setLoading(true); setError(null)
+    try { setItems(await listApprovals()) }
+    catch (e) { setError(e instanceof Error ? e.message : 'Could not load approvals') }
+    finally { setLoading(false) }
   }
-
-  useEffect(load, [])
-
-  async function answer(id: string, verdict: 'approve' | 'reject') {
-    setBusy(id)
-    setError(null)
+  useEffect(() => { void load() }, [])
+  async function answer(item: ApprovalRequest, verdict: 'approve' | 'reject') {
+    if (!window.confirm(`${verdict === 'approve' ? 'Approve' : 'Reject'} ${item.amount} for ${item.counterparty}? Approval debits the shared demo budget, not a Hedera wallet.`)) return
+    setBusy(true); setError(null)
     try {
-      const updated = await answerApproval(id, verdict)
-      setItems(current => current.map(item => (item.id === id ? updated : item)))
+      const updated = await answerApproval(item.id, verdict)
+      setItems(current => current.map(row => row.id === item.id ? updated : row))
     } catch (e) {
-      setErrorTitle('The policy engine refused this answer')
-      setError(e instanceof Error ? e.message : 'Backend unreachable')
-    } finally {
-      setBusy(null)
-    }
+      const message = e instanceof Error ? e.message : 'Could not settle approval'
+      try { setItems(await listApprovals()) } catch { /* Keep the original action error. */ }
+      setError(message)
+    } finally { setBusy(false) }
   }
-
-  return (
-    <>
-      <div className="page-heading">
-        <div>
-          <p className="eyebrow">MODULE / APPROVALS</p>
-          <h1>Approvals</h1>
-          <p className="subtitle">
-            Every HOLD verdict waits here. A denial never reaches this queue — what cannot settle is
-            never offered to a human.
-          </p>
+  const visible = items.filter(item => (!selected || item.id === selected) && (filter === 'ALL' || item.status === filter))
+  return <>
+    <div className="page-heading"><div><p className="eyebrow">MODULE / APPROVALS</p><h1>Approvals</h1><p className="subtitle">Review held policy requests and decision history. Approving affects demo budgets only; it does not send a payment.</p></div>
+      <button className="button secondary" disabled={busy || loading} onClick={() => void load()}>Refresh</button></div>
+    {error && <div className="audit-banner danger" role="alert">{error}</div>}
+    <div className="feature-toolbar"><label>Status <select value={filter} onChange={e => setFilter(e.target.value)}>{['ALL','PENDING','APPROVED','REJECTED'].map(value => <option key={value}>{value}</option>)}</select></label>
+      {selected && <button className="button secondary" onClick={() => setParams({})}>Show all requests</button>}<span>{visible.length} requests</span></div>
+    <section className="data-panel" aria-busy={loading || busy}>
+      {loading ? <p className="feature-note" role="status">Loading approvals…</p> : visible.length ? visible.map(item => <article className="approval-item" key={item.id}>
+        <div><h2>{item.amount ?? '—'} to {item.counterparty ?? 'Unknown recipient'}</h2><span className="status-badge">{item.status}</span></div>
+        <p>{item.reason}</p><p>Envelope: {item.envelope ?? '—'} · Rule: <code>{item.ruleId}</code></p>
+        <p className="audit-meta">Request: {item.id}<br/>Requested: {item.requestedAt ? new Date(item.requestedAt).toLocaleString() : 'Unknown'}</p>
+        {item.decidedAt && <p>Decided {new Date(item.decidedAt).toLocaleString()} by {item.decidedBy ?? 'Unknown actor'}</p>}
+        <div className="page-actions">{item.taskId && <Link to={`/audit?event=${encodeURIComponent(item.taskId)}`}>View originating audit event</Link>}
+          {item.status === 'PENDING' && <><button className="button secondary" disabled={busy} onClick={() => void answer(item, 'reject')}>Reject</button><button className="button primary" disabled={busy} onClick={() => void answer(item, 'approve')}>Approve</button></>}
         </div>
-      </div>
-
-      {error && (
-        <div className="audit-banner warn">
-          <XCircle size={16} />
-          <div>
-            <b>{errorTitle}</b>
-            <span>{error}</span>
-          </div>
-        </div>
-      )}
-
-      <div className="data-panel">
-        {items.length ? (
-          <div className="data-list">
-            {items.map(item => (
-              <div className="data-row" key={item.id}>
-                <div className="data-leading">
-                  <div className="row-icon">
-                    <FileCheck2 size={16} />
-                  </div>
-                  <div>
-                    <b>
-                      {item.amount} to {item.counterparty} ({item.envelope})
-                    </b>
-                    <span>{item.reason}</span>
-                  </div>
-                </div>
-                <div className="row-meta">
-                  <code className="rule-id">{item.ruleId}</code>
-                  {item.status === 'PENDING' ? (
-                    <>
-                      <button
-                        className="button secondary"
-                        disabled={busy === item.id}
-                        onClick={() => answer(item.id, 'reject')}
-                      >
-                        <XCircle size={14} />
-                        Reject
-                      </button>
-                      <button
-                        className="button primary"
-                        disabled={busy === item.id}
-                        onClick={() => answer(item.id, 'approve')}
-                      >
-                        <CheckCircle2 size={14} />
-                        Approve
-                      </button>
-                    </>
-                  ) : (
-                    <span className="status-badge">
-                      {item.status} by {item.decidedBy}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="empty-state">
-            <div className="empty-icon">
-              <FileCheck2 size={20} />
-            </div>
-            <p>Nothing waiting for a human.</p>
-            <span>Submit an EMERGENCY spend on the Policies page to raise one.</span>
-          </div>
-        )}
-      </div>
-    </>
-  )
+      </article>) : <div className="empty-state"><p>{error ? 'Approvals unavailable. Refresh to retry.' : 'No matching requests.'}</p><Link to="/policies">Open Policies</Link></div>}
+    </section>
+  </>
 }

@@ -20,7 +20,7 @@ export default function Sidebar() {
     <div className="brand"><Bot size={24}/><div><strong>Hedera</strong><span>Agent Platform</span></div></div>
     <div className="workspace">{role} workspace</div>
     <nav>{links.filter(link => canAccess(role, link.to)).map(({to, label, icon: Icon}) =>
-      <NavLink key={to} to={to} className={({isActive}) => isActive ? 'nav-link active' : 'nav-link'}><Icon size={17}/>{label}</NavLink>
+      <NavLink key={to} to={to} className={({isActive}) => isActive ? 'nav-link active' : 'nav-link'}><Icon size={17}/>{label}{['/payments','/tokens'].includes(to) && <small className="mock-pill">MOCK</small>}</NavLink>
     )}</nav>
     <div className="sidebar-bottom"><button className="button secondary" onClick={() => { void logout(); navigate('/login', {replace: true}) }}><LogOut size={17}/>Log out</button></div>
   </aside>
