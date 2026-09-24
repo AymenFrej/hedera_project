@@ -15,6 +15,43 @@ See [account permissions and tests](docs/account-access.md). The starter overvie
 the original template; real account creation and HCS writes can now occur when Hedera credentials
 are configured. Treat seeded demo users and authentication as development-only, not production-ready.
 
+## Team demo logins (local development only)
+
+Open [http://localhost:5173/login](http://localhost:5173/login) after starting the backend and
+frontend. On a fresh database, Flyway V7 creates these accounts:
+
+| Role | Email | Password | What to test |
+| --- | --- | --- | --- |
+| ADMIN | admin@example.com | `AdminPass123!` | Manage users, roles, account restoration, policies, approvals and audit |
+| USER | user@example.com | `UserPass123!` | Own wallet, profile/password settings; Payments/Tokens placeholders |
+| AUDITOR | auditor@example.com | `AuditorPass123!` | Own settings and read-only audit |
+| PLATFORM | platform@example.com | `PlatformPass123!` | User management, policies, approvals and audit operations |
+
+These are intentionally public **demo passwords**, not production credentials. Do not expose
+this seeded application publicly or reuse these passwords elsewhere. Existing databases retain
+any passwords or roles already changed; pulling code does not reset them.
+
+The four seeded wallets are mocks (`0.0.demo-*`). Configuring Hedera does not automatically
+replace them. With valid **testnet** credentials, new registrations/admin-created users get
+real wallets. An administrator can use **Create real wallet** to upgrade an active mock account.
+Keep operator credentials and the wallet-key encryption secret in your private environment,
+never in Git. Do not rotate the encryption secret without a wallet-key migration.
+
+Quick manual check: log in as ADMIN, create a disposable user, edit it, change its role,
+close it and restore it. Use **Delete mock account** only for a closed mock account without
+stored keys. Real wallets can be closed/restored but their keys are never purged by CRUD.
+Then log in as each role to check the sidebar and denied routes. Password changes and role
+changes invalidate old sessions; backend restarts require signing in again.
+
+API calls other than login/register/health require `Authorization: Bearer <token>`, using the
+token returned by `POST /api/v1/auth/login`. Policy demos require ADMIN or PLATFORM.
+The default backend URL is `http://localhost:8080/api/v1`; if using another port, set
+`VITE_API_BASE_URL` in `frontend/.env.local` and restart Vite. A developer's existing local
+override (for example port 8091) is not committed and should not be assumed on teammates' machines.
+
+Before updating an old Accounts database, read [the migration notes](docs/accounts-main-integration.md).
+Do not delete database volumes to resolve migration errors: they may contain real wallet keys.
+
 > **This is a starter template.** Most Hedera, AI, and business behavior is intentionally mocked so five developers can work in parallel on complete vertical features.
 
 ## Project idea
