@@ -21,11 +21,17 @@ public class GeminiIntentExtractor implements IntentExtractor {
   private final String baseUrl;
   private final String apiKey;
   private final String model;
+  private final Duration retryDelay;
 
   public GeminiIntentExtractor(String baseUrl, String apiKey, String model) {
+    this(baseUrl, apiKey, model, Duration.ofMillis(1500));
+  }
+
+  GeminiIntentExtractor(String baseUrl, String apiKey, String model, Duration retryDelay) {
     this.baseUrl = baseUrl.replaceAll("/+$", "");
     this.apiKey = apiKey;
     this.model = model;
+    this.retryDelay = retryDelay;
   }
 
   @Override
@@ -42,12 +48,12 @@ public class GeminiIntentExtractor implements IntentExtractor {
                     "responseSchema", ModelJson.intentSchema(true)));
     ModelJson.Reply reply;
     try {
-      reply =
-          ModelJson.post(
-              URI.create(baseUrl + "/v1beta/models/" + model + ":generateContent"),
-              Map.of("x-goog-api-key", apiKey),
-              body,
-              TIMEOUT);
+      reply = send(body);
+      // A busy model usually clears within a second or two: one more try before giving up.
+      if (reply.status() == 503) {
+        Thread.sleep(retryDelay.toMillis());
+        reply = send(body);
+      }
     } catch (HttpTimeoutException e) {
       throw new ExtractionException("Gemini took too long to answer: try again", e);
     } catch (IOException e) {
@@ -58,6 +64,10 @@ public class GeminiIntentExtractor implements IntentExtractor {
     }
 
     JsonNode json = reply.body();
+    if (reply.status() == 503) {
+      throw new ExtractionException(
+          "Gemini is busy right now: try again in a moment, or use the manual request");
+    }
     if (reply.status() == 429) {
       throw new ExtractionException(
           "The free Gemini quota is used up for now: wait a minute, or use the manual request");
@@ -78,6 +88,14 @@ public class GeminiIntentExtractor implements IntentExtractor {
       throw new ExtractionException("Gemini returned no answer");
     }
     return ModelJson.parseIntent(text);
+  }
+
+  private ModelJson.Reply send(Map<String, Object> body) throws IOException, InterruptedException {
+    return ModelJson.post(
+        URI.create(baseUrl + "/v1beta/models/" + model + ":generateContent"),
+        Map.of("x-goog-api-key", apiKey),
+        body,
+        TIMEOUT);
   }
 
   @Override

@@ -122,12 +122,12 @@ class HttpModelExtractorTest {
     answer(200, geminiAnswer(ANSWER, "STOP"));
 
     ExtractedIntent read =
-        new GeminiIntentExtractor(url, "test-key", "gemini-flash-latest").extract("Pay Zied 5 HBAR");
+        new GeminiIntentExtractor(url, "test-key", "gemini-flash-lite-latest").extract("Pay Zied 5 HBAR");
 
     assertThat(read.recipient()).isEqualTo("Zied");
     assertThat(path.get())
         .as("the key is never in the URL")
-        .isEqualTo("/v1beta/models/gemini-flash-latest:generateContent");
+        .isEqualTo("/v1beta/models/gemini-flash-lite-latest:generateContent");
     assertThat(keyHeader.get()).isEqualTo("test-key");
     JsonNode config = received.get().path("generationConfig");
     assertThat(config.path("responseMimeType").asText()).isEqualTo("application/json");
@@ -145,6 +145,40 @@ class HttpModelExtractorTest {
     assertThatThrownBy(() -> new GeminiIntentExtractor(url, "k", "m").extract("Pay Zied 5 HBAR"))
         .isInstanceOf(IntentExtractor.ExtractionException.class)
         .hasMessageContaining("quota");
+  }
+
+  @Test
+  void gemini_busy_is_tried_once_more_then_explained() {
+    java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+    server.removeContext("/");
+    server.createContext(
+        "/",
+        exchange -> {
+          byte[] bytes =
+              (calls.incrementAndGet() == 1
+                      ? "{\"error\":{\"code\":503,\"message\":\"high demand\"}}"
+                      : geminiAnswer(ANSWER, "STOP"))
+                  .getBytes(StandardCharsets.UTF_8);
+          exchange.sendResponseHeaders(calls.get() == 1 ? 503 : 200, bytes.length);
+          exchange.getResponseBody().write(bytes);
+          exchange.close();
+        });
+
+    ExtractedIntent read =
+        new GeminiIntentExtractor(url, "k", "m", java.time.Duration.ZERO).extract("Pay Zied 5 HBAR");
+
+    assertThat(read.recipient()).isEqualTo("Zied");
+    assertThat(calls.get()).isEqualTo(2);
+  }
+
+  @Test
+  void gemini_still_busy_after_the_retry_is_explained() {
+    answer(503, "{\"error\":{\"code\":503,\"message\":\"high demand\"}}");
+
+    assertThatThrownBy(
+            () -> new GeminiIntentExtractor(url, "k", "m", java.time.Duration.ZERO).extract("Pay Zied 5 HBAR"))
+        .isInstanceOf(IntentExtractor.ExtractionException.class)
+        .hasMessageContaining("busy");
   }
 
   @Test

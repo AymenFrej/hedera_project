@@ -36,7 +36,7 @@ public class LanguageConfig {
   @ConditionalOnExpression(PROVIDER + " == 'gemini'")
   IntentExtractor geminiIntentExtractor(
       @Value("${payments.ai.gemini.api-key:}") String apiKey,
-      @Value("${payments.ai.gemini.model:gemini-flash-latest}") String model) {
+      @Value("${payments.ai.gemini.model:gemini-flash-lite-latest}") String model) {
     requireKey(apiKey, "gemini", "GEMINI_API_KEY");
     log.info("Payment sentences are read by {} (Gemini); the model only proposes a request.", model);
     return new GeminiIntentExtractor(GeminiIntentExtractor.DEFAULT_BASE_URL, apiKey.trim(), model);
