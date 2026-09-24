@@ -2,11 +2,19 @@ package com.hedera.agentplatform.payments.language;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.errors.AnthropicServiceException;
+import com.anthropic.models.messages.Base64PdfSource;
+import com.anthropic.models.messages.ContentBlockParam;
+import com.anthropic.models.messages.DocumentBlockParam;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.StopReason;
 import com.anthropic.models.messages.StructuredMessage;
 import com.anthropic.models.messages.StructuredMessageCreateParams;
+import com.anthropic.models.messages.TextBlockParam;
+import java.util.Base64;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Asks Claude to read a payment sentence and return {@link ExtractedIntent} as structured output.
@@ -46,14 +54,53 @@ public class ClaudeIntentExtractor implements IntentExtractor {
 
   @Override
   public ExtractedIntent extract(String sentence) {
-    StructuredMessageCreateParams<ExtractedIntent> params =
+    return ask(
         MessageCreateParams.builder()
             .model(model)
             .maxTokens(4000L)
             .system(INSTRUCTIONS)
             .outputConfig(ExtractedIntent.class)
             .addUserMessage(sentence)
-            .build();
+            .build());
+  }
+
+  @Override
+  public Set<String> documentTypes() {
+    Set<String> types = new HashSet<>(DocumentPrompt.TEXT_TYPES);
+    types.add(DocumentPrompt.PDF);
+    return types;
+  }
+
+  @Override
+  public ExtractedIntent extractFromDocument(Document document, String note) {
+    List<ContentBlockParam> blocks =
+        document.isText()
+            ? List.of(text(DocumentPrompt.textDocument(document, note)))
+            : List.of(
+                ContentBlockParam.ofDocument(
+                    DocumentBlockParam.builder()
+                        .source(
+                            Base64PdfSource.builder()
+                                .data(Base64.getEncoder().encodeToString(document.data()))
+                                .build())
+                        .title(document.name())
+                        .build()),
+                text(DocumentPrompt.fileNote(document, note)));
+    return ask(
+        MessageCreateParams.builder()
+            .model(model)
+            .maxTokens(4000L)
+            .system(DocumentPrompt.INSTRUCTIONS)
+            .outputConfig(ExtractedIntent.class)
+            .addUserMessageOfBlockParams(blocks)
+            .build());
+  }
+
+  private static ContentBlockParam text(String text) {
+    return ContentBlockParam.ofText(TextBlockParam.builder().text(text).build());
+  }
+
+  private ExtractedIntent ask(StructuredMessageCreateParams<ExtractedIntent> params) {
     try {
       StructuredMessage<ExtractedIntent> response = client.messages().create(params);
       if (response.stopReason().filter(r -> r.equals(StopReason.REFUSAL)).isPresent()) {

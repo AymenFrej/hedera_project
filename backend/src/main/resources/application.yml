@@ -29,9 +29,17 @@ hedera:
 
 payments:
   ai:
-    # Claude reads payment sentences into a structured request when a key is set; empty = off.
+    # Which model reads payment sentences: claude, gemini or ollama. Blank = Claude if its key is
+    # set, otherwise off (the manual request form always works).
+    provider: ${PAYMENT_AI_PROVIDER:}
     api-key: ${ANTHROPIC_API_KEY:}
     model: ${PAYMENT_AI_MODEL:claude-opus-5}
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      model: ${GEMINI_MODEL:gemini-flash-lite-latest}
+    ollama:
+      url: ${OLLAMA_URL:http://localhost:11434}
+      model: ${OLLAMA_MODEL:qwen2.5:3b}
   # Optional demo fixtures, created once with: ./mvnw test -Dtest=PaymentDemoSetup
   demo-token-id: ${PAYMENT_DEMO_TOKEN_ID:}
   demo-recipient-id: ${PAYMENT_DEMO_RECIPIENT_ID:}

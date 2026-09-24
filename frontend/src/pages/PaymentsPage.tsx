@@ -320,7 +320,12 @@ export default function PaymentsPage() {
         </form>
       )}
 
-      <SentenceBox onPreview={(request) => void previewRequest(request)} previewing={previewing} />
+      <SentenceBox
+        contacts={contacts}
+        tokenSymbols={balance?.tokens.map((t) => t.symbol ?? '') ?? []}
+        onPreview={(request) => void previewRequest(request)}
+        previewing={previewing}
+      />
 
       <IntentComposer
         contacts={contacts}

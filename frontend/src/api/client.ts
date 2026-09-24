@@ -284,6 +284,8 @@ export type IntentUnderstanding = {
   assetSymbol: string | null
   steps: { field: string; input: string; value: string | null; source: string }[]
   problems: string[]
+  /** The policy's envelopes to pick from when none (or an unknown one) was said. */
+  envelopeChoices: string[]
 }
 
 /** What became of a sentence: what the language model read, then what the application resolved. */
@@ -296,11 +298,28 @@ export type SentenceInterpretation = {
   intent: PaymentIntent | null
   clarification: string | null
   understanding: IntentUnderstanding | null
+  /** The attached file's name; null for a sentence. */
+  document: string | null
+  /** Something to check before confirming, e.g. an account read from a PDF. */
+  warning: string | null
 }
 
 /** The language model only proposes fields; the backend resolves and checks them like a form. */
 export async function interpretSentence(text: string): Promise<SentenceInterpretation> {
   return request('/payments/intent/interpret', { method: 'POST', body: JSON.stringify({ text }) })
+}
+
+/** The same as a sentence, from an attached invoice or bill (base64, at most 5 MB). */
+export async function interpretDocument(
+  fileName: string,
+  mimeType: string,
+  content: string,
+  note: string,
+): Promise<SentenceInterpretation> {
+  return request('/payments/intent/document', {
+    method: 'POST',
+    body: JSON.stringify({ fileName, mimeType, content, note }),
+  })
 }
 
 /** Resolves each field of an intent on the backend, with where each value came from. */

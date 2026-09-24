@@ -17,6 +17,6 @@ class SentenceServiceWithoutModelTest {
     SentenceInterpretation i = sentences.interpret("Pay Zied 5 HBAR");
 
     assertThat(i.available()).isFalse();
-    assertThat(i.detail()).contains("ANTHROPIC_API_KEY");
+    assertThat(i.detail()).contains("PAYMENT_AI_PROVIDER");
   }
 }

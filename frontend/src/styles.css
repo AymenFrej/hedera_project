@@ -264,3 +264,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .model-read dl{display:grid;grid-template-columns:auto 1fr;gap:5px 18px;margin:0 0 8px;font-size:12px}
 .model-read dt{color:#8a93a6}
 .model-read dd{margin:0;font-weight:700;color:#d7dce8}
+
+/* --- Sentence box: suggestions and attached documents ------------------------- */
+.sentence form{flex-wrap:wrap}
+.sentence-input{flex:1;display:flex;flex-direction:column;gap:6px;min-width:240px}
+.sentence-actions{display:flex;gap:8px;align-items:flex-start}
+.attached-file{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;padding:4px 6px 4px 10px;border-radius:999px;border:1px solid #3a3363;background:#1f1b36;color:#c9c0f5;font-size:12px}
+.attached-file .text-button{padding:2px;color:#8a93a6}
+.suggestions{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 10px}
+.suggestion{border:1px solid #3a3363;background:transparent;color:#b9adf3;border-radius:999px;padding:6px 12px;font-size:12px;font-family:inherit;cursor:pointer}
+.suggestion:hover:not(:disabled){background:#1f1b36;border-color:#7665cb}
+.suggestion:disabled{opacity:.5;cursor:default}
+@media (max-width:640px){.sentence-actions{width:100%}.sentence-actions .button{flex:1}}
+.envelope-choice{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0}
+.envelope-choice span{font-size:12px;color:#d7dce8;font-weight:700}
