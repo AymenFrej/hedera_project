@@ -1,12 +1,17 @@
 package com.hedera.agentplatform.payments;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 import com.hedera.agentplatform.payments.HederaTestFixtures.CreatedAccount;
 import com.hedera.agentplatform.payments.dto.CreatePaymentRequest;
 import com.hedera.agentplatform.payments.dto.PaymentResponse;
 import com.hedera.agentplatform.payments.dto.PaymentVerification;
 import com.hedera.agentplatform.payments.service.PaymentService;
+import com.hedera.agentplatform.payments.policy.PaymentPolicy;
+import com.hedera.agentplatform.payments.policy.PaymentPolicy.PaymentPolicyDecision;
+import com.hedera.agentplatform.payments.policy.PaymentPolicy.Verdict;
 import com.hedera.hashgraph.sdk.Client;
 import com.hedera.hashgraph.sdk.Hbar;
 import com.hedera.hashgraph.sdk.TokenId;
@@ -18,7 +23,9 @@ import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.mockito.Answers;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
  * HTS payments end to end against the real testnet: payment → Hedera → Mirror Node verification.
@@ -42,12 +49,18 @@ class PaymentTokenLiveIT {
   @Autowired private PaymentService service;
   @Autowired private Client client;
 
+  /** Hedera's behaviour is under test here, not the policy's: every payment is allowed. */
+  @MockitoBean(answers = Answers.CALLS_REAL_METHODS)
+  private PaymentPolicy policy;
+
   private String token;
   private String associated;
   private String notAssociated;
 
   @BeforeAll
   void createTokenAndRecipients() throws Exception {
+    when(policy.evaluate(any()))
+        .thenReturn(new PaymentPolicyDecision(Verdict.ALLOW, "test.allow", "live Hedera test"));
     assertThat(service.isLedgerActive()).as("credentials are set, live gateway expected").isTrue();
 
     TokenId tokenId = HederaTestFixtures.createToken(client, "Payments Live IT", "PAYIT", SUPPLY);

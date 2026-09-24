@@ -1,5 +1,6 @@
 package com.hedera.agentplatform.payments.service;
 
+import org.mockito.Answers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,7 +31,7 @@ class PaymentServiceTest {
   @Autowired private PaymentService service;
   @Autowired private AuditEventRepository auditEvents;
   @Autowired private PaymentRepository payments;
-  @MockitoBean private PaymentPolicy policy;
+  @MockitoBean(answers = Answers.CALLS_REAL_METHODS) private PaymentPolicy policy;
 
   private static CreatePaymentRequest hbar(String amount) {
     return new CreatePaymentRequest("0.0.4242", amount, null, "essentials", "rent share");

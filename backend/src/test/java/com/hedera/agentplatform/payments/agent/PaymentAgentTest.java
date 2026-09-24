@@ -1,5 +1,6 @@
 package com.hedera.agentplatform.payments.agent;
 
+import org.mockito.Answers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -27,7 +28,7 @@ class PaymentAgentTest {
   @Autowired private PaymentAgent agent;
 
   /** The agent is tested here, not the policy: it allows everything. */
-  @MockitoBean private PaymentPolicy policy;
+  @MockitoBean(answers = Answers.CALLS_REAL_METHODS) private PaymentPolicy policy;
 
   @BeforeEach
   void allowAll() {

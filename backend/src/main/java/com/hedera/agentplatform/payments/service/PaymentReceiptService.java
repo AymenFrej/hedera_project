@@ -59,7 +59,7 @@ public class PaymentReceiptService {
             : null;
     PaymentResponse payment = ledger == null ? before : payments.findById(paymentId);
 
-    List<AuditEventEntity> events = auditLookup.eventsFor(paymentId);
+    List<AuditEventEntity> events = eventsOf(payment);
     List<AuditProof> audit = events.stream().map(this::prove).toList();
 
     boolean onLedger = ledger != null && ledger.ledgerResult() != null;
@@ -85,10 +85,13 @@ public class PaymentReceiptService {
         properties.getNetwork());
   }
 
+  private List<AuditEventEntity> eventsOf(PaymentResponse p) {
+    return auditLookup.eventsFor(p.id(), p.policyAuditEventId(), p.approvalId());
+  }
+
   /** The audit events of one payment, as the audit module reports them. */
   public List<AuditEventResponse> auditEvents(String paymentId) {
-    payments.findById(paymentId);
-    return auditLookup.eventsFor(paymentId).stream()
+    return eventsOf(payments.findById(paymentId)).stream()
         .map(e -> auditService.findById(e.id))
         .toList();
   }
@@ -96,7 +99,7 @@ public class PaymentReceiptService {
   /** Reads one audit event of this payment back from HCS, through the audit module. */
   public VerificationResult verifyAuditEvent(String paymentId, String eventId) {
     boolean belongs =
-        auditLookup.eventsFor(paymentId).stream().anyMatch(e -> e.id.equals(eventId));
+        eventsOf(payments.findById(paymentId)).stream().anyMatch(e -> e.id.equals(eventId));
     if (!belongs) {
       throw new IllegalArgumentException(
           "Audit event " + eventId + " does not belong to payment " + paymentId);
@@ -169,7 +172,11 @@ public class PaymentReceiptService {
               : "Hedera refused the transfer (" + p.failureReason()
                   + "). No funds moved; the network fee was charged.";
       case "BLOCKED" -> "The policy refused it before execution: no Hedera transaction was created.";
-      case "REJECTED" -> "A reviewer refused it: no Hedera transaction was created.";
+      case "REJECTED" ->
+          "rejected by a human reviewer".equals(p.failureReason())
+              ? "A reviewer refused it: no Hedera transaction was created."
+              : "It could not be approved (" + p.failureReason()
+                  + "): no Hedera transaction was created.";
       case "AWAITING_APPROVAL" -> "The policy holds it until a reviewer approves or rejects it.";
       case "SIMULATED" -> "No Hedera credentials: nothing was transferred.";
       default ->
@@ -219,6 +226,16 @@ public class PaymentReceiptService {
       case "PAYMENT_POLICY:ALLOW", "PAYMENT_POLICY:HOLD", "PAYMENT_POLICY:DENY" ->
           new Step("Policy evaluated: " + e.status, "DENY".equals(e.status) ? "FAILED" : "DONE",
               e.createdAt, policyDetail(p), e.id);
+      case "POLICY_DECISION:ALLOW", "POLICY_DECISION:HOLD", "POLICY_DECISION:DENY" ->
+          new Step("Policy evaluated: " + e.status, "DENY".equals(e.status) ? "FAILED" : "DONE",
+              e.createdAt, policyDetail(p) + " (recorded by the Policies module)", e.id);
+      case "POLICY_APPROVAL:APPROVED" ->
+          new Step("Approved by a reviewer", "DONE", e.createdAt,
+              "in the approvals queue, which checked it was still affordable", e.id);
+      case "POLICY_APPROVAL:REJECTED" ->
+          new Step("Rejected by a reviewer", "FAILED", e.createdAt, "in the approvals queue", e.id);
+      case "PAYMENT_APPROVAL:REFUSED" ->
+          new Step("Approval refused", "FAILED", e.createdAt, reason, e.id);
       case "PAYMENT_APPROVAL:APPROVED" ->
           new Step("Approved by a reviewer", "DONE", e.createdAt, null, e.id);
       case "PAYMENT_APPROVAL:REJECTED" ->

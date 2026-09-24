@@ -18,6 +18,8 @@ public record PaymentResponse(
     String policyRuleId,
     String policyReason,
     String failureReason,
+    String approvalId,
+    String policyAuditEventId,
     String requestedByType,
     String requestedById,
     Instant createdAt,

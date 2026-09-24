@@ -38,6 +38,12 @@ public class PaymentEntity {
   public String policyReason;
   public String failureReason;
 
+  /** Audit event the Policies module recorded the decision as. */
+  public String policyAuditEventId;
+
+  /** Approval opened in the Policies module's queue when the decision was HOLD. */
+  public String approvalId;
+
   /** USER, AGENT or SYSTEM: who asked for the payment. Resolved server-side. */
   public String requestedByType;
 

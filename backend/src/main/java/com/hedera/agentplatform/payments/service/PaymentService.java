@@ -117,9 +117,12 @@ public class PaymentService {
     // envelope from this point on, so a concurrent payment is decided on the reduced balance.
     PaymentEntity saved = payment;
     PaymentPolicyDecision decision =
-        policyLocks.withLock(saved.currency, () -> decideAndCommit(saved));
+        policyLocks.withLock(PolicyLocks.LEDGER, () -> decideAndCommit(saved));
     payment = repository.findById(saved.id).orElseThrow();
-    audit("PAYMENT_POLICY", decision.verdict().name(), payment);
+    if (payment.policyAuditEventId == null) {
+      // The policy kept no record of its own: Payments records the decision.
+      audit("PAYMENT_POLICY", decision.verdict().name(), payment);
+    }
 
     if (decision.verdict() == PaymentPolicy.Verdict.ALLOW) {
       payment = execute(payment);
@@ -167,7 +170,10 @@ public class PaymentService {
   }
 
   private PaymentPolicyDecision decideAndCommit(PaymentEntity payment) {
-    PaymentPolicyDecision decision = policy.evaluate(payment);
+    PaymentPolicy.Submitted submitted = policy.submit(payment);
+    PaymentPolicyDecision decision = submitted.decision();
+    payment.approvalId = submitted.approvalId();
+    payment.policyAuditEventId = submitted.auditEventId();
     payment.policyVerdict = decision.verdict().name();
     payment.policyRuleId = decision.ruleId();
     payment.policyReason = decision.reason();
@@ -184,45 +190,60 @@ public class PaymentService {
   /**
    * A human approves a held payment; it is sent immediately.
    *
-   * <p>The policy is asked again first. A reviewer answers a HOLD, not a DENY: if the envelope was
-   * used up while the payment waited, approving it would spend money the envelope no longer has,
-   * so the payment is refused instead.
+   * <p>The approval is answered in the Policies module, which checks the payment is still
+   * affordable (the envelope may have been used up while it waited) and debits it. If it may not
+   * go, the payment is refused and nothing is sent. It may also have been answered already in the
+   * Policies module's own approvals queue.
    */
   public PaymentResponse approve(String id) {
     PaymentEntity held = requireAwaitingApproval(id);
     PaymentEntity payment =
         policyLocks.withLock(
-            held.currency,
+            PolicyLocks.LEDGER,
             () -> {
-              PaymentPolicyDecision now = policy.evaluate(held);
-              if (now.verdict() == PaymentPolicy.Verdict.DENY) {
-                held.policyVerdict = now.verdict().name();
-                held.policyRuleId = now.ruleId();
-                held.policyReason = now.reason();
+              try {
+                if (held.approvalId != null) {
+                  policy.approve(held.approvalId);
+                } else {
+                  // No approval record: ask the policy again. A reviewer answers a HOLD, not a DENY.
+                  PaymentPolicyDecision now = policy.evaluate(held);
+                  if (now.verdict() == PaymentPolicy.Verdict.DENY) {
+                    throw new IllegalStateException("the policy now refuses it: " + now.reason());
+                  }
+                }
+              } catch (IllegalStateException refused) {
                 held.status = PaymentStatus.REJECTED.name();
-                held.failureReason = "the policy now refuses it: " + now.reason();
+                held.failureReason = refused.getMessage();
                 return touch(held);
               }
-              // Claim the payment inside the lock: it counts against its envelope from here, and
-              // if two approvals race, the optimistic lock rejects the second one.
+              // Claim the payment inside the lock; if two approvals race, the optimistic lock
+              // rejects the second one.
               held.status = PaymentStatus.SUBMITTED.name();
               return touch(held);
             });
     if (PaymentStatus.REJECTED.name().equals(payment.status)) {
-      audit("PAYMENT_POLICY", "DENY", payment);
+      audit("PAYMENT_APPROVAL", "REFUSED", payment);
       return toResponse(payment);
     }
-    audit("PAYMENT_APPROVAL", "APPROVED", payment);
+    if (payment.approvalId == null) {
+      audit("PAYMENT_APPROVAL", "APPROVED", payment);
+    }
     return toResponse(execute(payment));
   }
 
   /** A human rejects a held payment; nothing is sent. */
   public PaymentResponse reject(String id) {
     PaymentEntity payment = requireAwaitingApproval(id);
+    if (payment.approvalId != null) {
+      // Recorded by the Policies module as the reviewer's answer.
+      policy.reject(payment.approvalId);
+    }
     payment.status = PaymentStatus.REJECTED.name();
     payment.failureReason = "rejected by a human reviewer";
     payment = touch(payment);
-    audit("PAYMENT_APPROVAL", "REJECTED", payment);
+    if (payment.approvalId == null) {
+      audit("PAYMENT_APPROVAL", "REJECTED", payment);
+    }
     return toResponse(payment);
   }
 
@@ -604,6 +625,8 @@ public class PaymentService {
         p.policyRuleId,
         p.policyReason,
         p.failureReason,
+        p.approvalId,
+        p.policyAuditEventId,
         p.requestedByType,
         p.requestedById,
         p.createdAt,

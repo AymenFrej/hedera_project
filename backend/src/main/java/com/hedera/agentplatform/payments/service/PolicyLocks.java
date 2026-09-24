@@ -19,6 +19,9 @@ import org.springframework.stereotype.Component;
 @Component
 class PolicyLocks {
 
+  /** The Policies module keeps one set of envelope balances, so there is one lock for it. */
+  static final String LEDGER = "envelope-ledger";
+
   private final ConcurrentHashMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();
 
   <T> T withLock(String asset, Supplier<T> work) {

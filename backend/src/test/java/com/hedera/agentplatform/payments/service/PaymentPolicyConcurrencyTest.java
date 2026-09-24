@@ -4,13 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.agentplatform.payments.dto.CreatePaymentRequest;
 import com.hedera.agentplatform.payments.dto.PaymentResponse;
-import com.hedera.agentplatform.payments.entity.PaymentEntity;
 import com.hedera.agentplatform.payments.repository.PaymentRepository;
-import java.math.BigDecimal;
-import java.time.Instant;
+import com.hedera.agentplatform.policies.service.EnvelopeLedger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -21,16 +18,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.TestPropertySource;
 
 /**
  * Two payments decided at the same instant must not both spend the same envelope money.
  *
  * <p>Not {@code @Transactional}: the payments run on separate threads and must see each other's
- * committed rows, as in production. The rows are removed afterwards.
+ * committed rows, as in production. The ledger is put back to its opening position afterwards.
  */
 @SpringBootTest
-@TestPropertySource(properties = "payments.runways=0.0.8888=1000")
 class PaymentPolicyConcurrencyTest {
 
   private static final String TOKEN = "0.0.8888";
@@ -38,37 +33,33 @@ class PaymentPolicyConcurrencyTest {
 
   @Autowired private PaymentService payments;
   @Autowired private PaymentRepository repository;
+  @Autowired private EnvelopeLedger ledger;
 
-  /** The recipient has been paid before, so only the envelope rules apply. */
+  private CreatePaymentRequest essentials(long units) {
+    return new CreatePaymentRequest(RECIPIENT, String.valueOf(units), TOKEN, "ESSENTIALS", null);
+  }
+
+  /**
+   * Opening position (essentials 300), then a first 1-unit payment to the recipient, held and
+   * approved: that vouches for the recipient and leaves essentials at 299.
+   */
   @BeforeEach
   void knownRecipient() {
-    PaymentEntity earlier = new PaymentEntity();
-    earlier.id = "pay_" + UUID.randomUUID();
-    earlier.destination = RECIPIENT;
-    earlier.amount = BigDecimal.ONE;
-    earlier.amountUnits = 1L;
-    earlier.currency = TOKEN;
-    earlier.tokenId = TOKEN;
-    earlier.status = "CONFIRMED";
-    earlier.createdAt = Instant.now();
-    earlier.updatedAt = earlier.createdAt;
-    repository.saveAndFlush(earlier);
+    ledger.reset();
+    payments.approve(payments.create(essentials(1)).id());
   }
 
   @AfterEach
   void cleanUp() {
     repository.deleteAll(
         repository.findAll().stream().filter(p -> TOKEN.equals(p.currency)).toList());
-  }
-
-  private CreatePaymentRequest essentials(long units) {
-    return new CreatePaymentRequest(RECIPIENT, String.valueOf(units), TOKEN, "ESSENTIALS", null);
+    ledger.reset();
   }
 
   @Test
   void concurrent_payments_cannot_together_spend_more_than_the_envelope() throws Exception {
-    // Essentials = 300. One payment of 140 is within 50% of 300 and is allowed; after it only 160
-    // is left, and 140 is more than half of that. So exactly one of these may go through.
+    // Essentials = 299 after the vouching payment. 140 is within half of it and is allowed; after
+    // it only 159 is left, and 140 is more than half of that. So exactly one may go through.
     int threads = 8;
     ExecutorService pool = Executors.newFixedThreadPool(threads);
     CountDownLatch start = new CountDownLatch(1);
@@ -96,19 +87,18 @@ class PaymentPolicyConcurrencyTest {
 
   @Test
   void approving_a_held_payment_after_its_envelope_was_used_up_is_refused() {
-    // 200 is more than half of 300: held for a reviewer.
+    // 200 is more than half of 299: held for a reviewer.
     PaymentResponse held = payments.create(essentials(200));
     assertThat(held.status()).isEqualTo("AWAITING_APPROVAL");
 
-    // Meanwhile 150 is spent from the same envelope (exactly half of 300: allowed).
-    assertThat(payments.create(essentials(150)).policyVerdict()).isEqualTo("ALLOW");
+    // Meanwhile 149 is spent from the same envelope (within half of 299: allowed).
+    assertThat(payments.create(essentials(149)).policyVerdict()).isEqualTo("ALLOW");
 
-    // Only 150 is left: approving the 200 would overspend, so the policy now refuses it.
+    // Only 150 is left: the Policies module refuses the approval as no longer affordable.
     PaymentResponse approved = payments.approve(held.id());
 
     assertThat(approved.status()).isEqualTo("REJECTED");
-    assertThat(approved.policyVerdict()).isEqualTo("DENY");
-    assertThat(approved.policyRuleId()).isEqualTo("funds.insufficient");
+    assertThat(approved.failureReason()).contains("no longer affordable");
     assertThat(approved.transactionId()).isNull();
   }
 }

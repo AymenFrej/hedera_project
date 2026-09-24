@@ -66,7 +66,6 @@ request → policy (ALLOW / HOLD / DENY) → [human approval if HOLD] → Hedera
 | `GET` | `/api/v1/payments/{id}/result` | the result screen: outcome, Mirror Node check, timeline from the payment's audit events, each event verified on HCS |
 | `GET` | `/api/v1/payments/{id}/audit` | the audit events this payment wrote |
 | `GET` | `/api/v1/payments/{id}/audit/{eventId}/verification` | read one of them back from HCS (through the audit module) |
-| `GET` | `/api/v1/payments/policy-state?asset=HBAR` | runway, envelope balances left and accounts already paid, as the policy engine sees them |
 | `GET` | `/api/v1/payments/balance` | balances of the paying account (HBAR + associated tokens), from the Mirror Node |
 | `GET` | `/api/v1/payments/status` | `{ "ledgerActive": true, "demoTokenId": "0.0.…", "demoRecipientId": "0.0.…" }` |
 
@@ -241,21 +240,26 @@ Metadata carries `paymentId`, `amount`, `currency`, `destination`, and when know
 
 Both follow the `ActorResolver` pattern: declare a bean and it replaces the default.
 
-**Policies: `PaymentPolicy` → `EnginePaymentPolicy`.** Payments asks the Policies module's pure
-`PolicyEngine.decide()`; every verdict, rule id and reason is the engine's. Payments supplies the
-`PolicyState`, because it owns the payment history it comes from:
+**Policies: `PaymentPolicy` → `EnginePaymentPolicy`.** Everything is the Policies module's; Payments
+only turns a payment into a `PolicyRequest` (envelope, amount in the payment's smallest unit,
+recipient account as counterparty):
 
-- **Envelope balances.** `PAYMENT_RUNWAYS` sets a runway per asset in smallest units
-  (`HBAR=5000000000,0.0.10687138=1000`). `PolicyEngine.allocate()` splits it (rent 50 %,
-  essentials 30 %, emergency the rest); each envelope then shrinks by the payments committed from
-  it (`SUBMITTED`, `CONFIRMED`, `SIMULATED`; held and rejected payments do not count). An asset
-  without a runway has no funded envelope, so the engine denies it (`envelope.unfunded`).
-- **Known counterparties.** Accounts already paid (`CONFIRMED`, `SIMULATED`). A first payment to
-  anyone else is held (`counterparty.unknown`).
+| Payments step | Policies module |
+|---|---|
+| Preview | `PolicyEngine.decide()` on `EnvelopeLedger.state()`: pure, nothing recorded or debited |
+| Execute | `ApprovalService.submit()`: decision recorded as `POLICY_DECISION`, envelope debited on ALLOW, approval opened on HOLD |
+| Approve (Payments or `/policies/approvals`) | `ApprovalService.approve()`: re-checks affordability, debits, records `POLICY_APPROVAL` |
+| Reject | `ApprovalService.reject()`, recorded as `POLICY_APPROVAL` |
 
-`GET /payments/policy-state?asset=0.0.10687138` shows both. Payments calls the pure engine, not
-`PolicyDecisionService`: the preview must record nothing, and Payments already audits the decision
-once per payment as `PAYMENT_POLICY`, with the payment id and the engine's `ruleId`.
+The payment stores `policyAuditEventId` and `approvalId` (V9), so its result timeline shows the
+Policies module's decision and approval events next to its own. A held payment can be answered in
+either place: approved in the queue, it is sent when approved in Payments; rejected there, it can
+no longer be sent. Decisions and the ledger are serialized in Payments, so concurrent payments
+cannot together overspend an envelope.
+
+Known gaps, for the Policies module: envelopes have no asset or unit (the demo runway 500/300/200
+fits PAYTEST, 0 decimals, not HBAR tinybars), and an envelope debited at decision time is not
+credited back when the Hedera transfer then fails.
 
 **Accounts — `PaymentSigner`.** Until one exists, `OperatorPaymentSigner` sends from the platform
 operator. A custodial signer returns the signed-in user's account from `payer(...)` and, in

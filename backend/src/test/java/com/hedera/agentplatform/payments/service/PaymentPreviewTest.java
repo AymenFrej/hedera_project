@@ -1,5 +1,6 @@
 package com.hedera.agentplatform.payments.service;
 
+import org.mockito.Answers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -46,7 +47,7 @@ class PaymentPreviewTest {
   @Autowired private PaymentService payments;
   @Autowired private PaymentRepository paymentRows;
   @Autowired private AuditEventRepository auditRows;
-  @MockitoBean private PaymentPolicy policy;
+  @MockitoBean(answers = Answers.CALLS_REAL_METHODS) private PaymentPolicy policy;
   @MockitoBean private HederaPaymentGateway gateway;
   @MockitoBean private PaymentMirrorClient mirror;
 
