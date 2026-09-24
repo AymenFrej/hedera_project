@@ -110,6 +110,32 @@ class PaymentIntentTest {
   }
 
   @Test
+  void no_envelope_is_asked_for_instead_of_sent_to_a_certain_policy_denial() {
+    IntentUnderstanding u =
+        intents.understand(new PaymentIntent("0.0.4242", "0.05", null, null, null, null));
+
+    assertThat(u.understood()).as("the policy denies a request without an envelope").isFalse();
+    assertThat(u.request()).isNull();
+    assertThat(u.envelopeChoices())
+        .as("the choices are the policy's own envelopes")
+        .containsExactlyElementsOf(
+            java.util.Arrays.stream(com.hedera.agentplatform.policies.PolicyEngine.Envelope.values())
+                .map(e -> e.name().toLowerCase(java.util.Locale.ROOT))
+                .toList());
+    assertThat(u.problems()).anyMatch(p -> p.startsWith("Choose which envelope pays"));
+  }
+
+  @Test
+  void an_envelope_that_does_not_exist_is_not_guessed() {
+    IntentUnderstanding u =
+        intents.understand(new PaymentIntent("0.0.4242", "1", null, "holidays", null, null));
+
+    assertThat(u.understood()).isFalse();
+    assertThat(u.problems()).anyMatch(p -> p.contains("no envelope called \"holidays\""));
+    assertThat(u.envelopeChoices()).isNotEmpty();
+  }
+
+  @Test
   void an_account_id_and_hbar_need_no_lookup() {
     IntentUnderstanding u = intents.understand(intent("0.0.4242", "1.5", null, null));
 

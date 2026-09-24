@@ -284,6 +284,8 @@ export type IntentUnderstanding = {
   assetSymbol: string | null
   steps: { field: string; input: string; value: string | null; source: string }[]
   problems: string[]
+  /** The policy's envelopes to pick from when none (or an unknown one) was said. */
+  envelopeChoices: string[]
 }
 
 /** What became of a sentence: what the language model read, then what the application resolved. */

@@ -40,19 +40,19 @@ export default function IntentComposer({
     setUnderstanding(null)
   }
 
-  async function understand(event: FormEvent) {
-    event.preventDefault()
+  async function understand(event: FormEvent | null, fields = intent) {
+    event?.preventDefault()
     setBusy(true)
     setError(null)
     try {
       setUnderstanding(
         await understandIntent({
-          recipient: intent.recipient,
-          amount: intent.amount,
-          asset: intent.asset || 'HBAR',
-          envelope: intent.envelope || null,
+          recipient: fields.recipient,
+          amount: fields.amount,
+          asset: fields.asset || 'HBAR',
+          envelope: fields.envelope || null,
           memo: null,
-          keepAtLeast: intent.keepAtLeast || null,
+          keepAtLeast: fields.keepAtLeast || null,
         }),
       )
     } catch (e) {
@@ -148,6 +148,11 @@ export default function IntentComposer({
           understanding={understanding}
           previewing={previewing}
           onPreview={onPreview}
+          onChooseEnvelope={(envelope) => {
+            const next = { ...intent, envelope }
+            setIntent(next)
+            void understand(null, next)
+          }}
         />
       )}
 
@@ -161,10 +166,13 @@ export function UnderstandingCard({
   understanding,
   previewing,
   onPreview,
+  onChooseEnvelope,
 }: {
   understanding: IntentUnderstanding
   previewing: boolean
   onPreview: (request: CreatePaymentRequest) => void
+  /** Re-reads the request with the envelope the person picked. */
+  onChooseEnvelope?: (envelope: string) => void
 }) {
   return (
     <div className={`understanding ${understanding.understood ? 'ok' : 'danger'}`}>
@@ -186,6 +194,16 @@ export function UnderstandingCard({
           {p}
         </div>
       ))}
+      {onChooseEnvelope && understanding.envelopeChoices?.length > 0 && (
+        <div className="envelope-choice">
+          <span>Which envelope pays?</span>
+          {understanding.envelopeChoices.map((e) => (
+            <button key={e} type="button" className="suggestion" onClick={() => onChooseEnvelope(e)}>
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
       {understanding.understood && understanding.request && (
         <button
           type="button"

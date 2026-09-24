@@ -276,3 +276,5 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .suggestion:hover:not(:disabled){background:#1f1b36;border-color:#7665cb}
 .suggestion:disabled{opacity:.5;cursor:default}
 @media (max-width:640px){.sentence-actions{width:100%}.sentence-actions .button{flex:1}}
+.envelope-choice{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0}
+.envelope-choice span{font-size:12px;color:#d7dce8;font-weight:700}

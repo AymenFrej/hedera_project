@@ -3,6 +3,7 @@ import { AlertTriangle, Brain, FileText, Loader2, Paperclip, Sparkles, X, XCircl
 import {
   interpretDocument,
   interpretSentence,
+  understandIntent,
   type Contact,
   type CreatePaymentRequest,
   type SentenceInterpretation,
@@ -87,6 +88,22 @@ export default function SentenceBox({
       } else {
         setResult(await interpretSentence(sentence))
       }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not read the request')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** The model's reading stays as it was; only the envelope the person picked is added. */
+  async function chooseEnvelope(envelope: string) {
+    if (!result?.intent) return
+    const intent = { ...result.intent, envelope }
+    setBusy(true)
+    setError(null)
+    try {
+      const understanding = await understandIntent(intent)
+      setResult({ ...result, intent, understanding })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read the request')
     } finally {
@@ -273,6 +290,7 @@ export default function SentenceBox({
               understanding={result.understanding}
               previewing={previewing}
               onPreview={onPreview}
+              onChooseEnvelope={(e) => void chooseEnvelope(e)}
             />
           )}
         </>

@@ -9,6 +9,8 @@ import java.util.List;
  * @param request the payment the intent describes; null when something did not resolve
  * @param steps each resolution, in order, with its source
  * @param problems what could not be resolved, in words; empty when understood
+ * @param envelopeChoices the envelopes the person can pick from when none was said; empty
+ *     otherwise. The policy denies a request without an envelope, so it is asked for here.
  */
 public record IntentUnderstanding(
     boolean understood,
@@ -16,7 +18,8 @@ public record IntentUnderstanding(
     String recipientName,
     String assetSymbol,
     List<Resolution> steps,
-    List<String> problems) {
+    List<String> problems,
+    List<String> envelopeChoices) {
 
   /**
    * @param field what was resolved, e.g. "Recipient"

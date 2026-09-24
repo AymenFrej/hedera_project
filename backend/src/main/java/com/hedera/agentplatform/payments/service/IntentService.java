@@ -1,5 +1,7 @@
 package com.hedera.agentplatform.payments.service;
 
+import java.util.Arrays;
+import com.hedera.agentplatform.policies.PolicyEngine;
 import com.hedera.agentplatform.payments.dto.CreatePaymentRequest;
 import com.hedera.agentplatform.payments.dto.IntentUnderstanding;
 import com.hedera.agentplatform.payments.dto.IntentUnderstanding.Resolution;
@@ -91,14 +93,24 @@ public class IntentService {
       }
     }
 
+    // The envelope is the policy's: it denies a request that names none, so ask instead of
+    // letting a request through that can only be refused. Names come from the policy module.
+    List<String> envelopes =
+        Arrays.stream(PolicyEngine.Envelope.values()).map(e -> e.name().toLowerCase(Locale.ROOT)).toList();
+    List<String> envelopeChoices = List.of();
     String envelope = trim(intent.envelope());
-    if (envelope != null) {
-      if (envelope.matches("(?i)RENT|ESSENTIALS|EMERGENCY")) {
-        envelope = envelope.toUpperCase(Locale.ROOT);
-        steps.add(new Resolution("Envelope", intent.envelope(), envelope, "as given"));
-      } else {
-        problems.add("The envelope must be rent, essentials or emergency");
-      }
+    if (envelope == null) {
+      steps.add(new Resolution("Envelope", "(none)", null, "not said: choose which envelope pays"));
+      problems.add("Choose which envelope pays: " + String.join(", ", envelopes));
+      envelopeChoices = envelopes;
+    } else if (envelopes.contains(envelope.toLowerCase(Locale.ROOT))) {
+      envelope = envelope.toUpperCase(Locale.ROOT);
+      steps.add(new Resolution("Envelope", intent.envelope(), envelope, "as given"));
+    } else {
+      steps.add(new Resolution("Envelope", intent.envelope(), null, "the policy's envelopes"));
+      problems.add("There is no envelope called \"" + intent.envelope() + "\": choose "
+          + String.join(", ", envelopes));
+      envelopeChoices = envelopes;
     }
 
     String keep = trim(intent.keepAtLeast());
@@ -112,7 +124,8 @@ public class IntentService {
     }
 
     if (!problems.isEmpty()) {
-      return new IntentUnderstanding(false, null, recipientName, symbol, steps, problems);
+      return new IntentUnderstanding(
+          false, null, recipientName, symbol, steps, problems, envelopeChoices);
     }
     return new IntentUnderstanding(
         true,
@@ -120,6 +133,7 @@ public class IntentService {
         recipientName,
         symbol,
         steps,
+        List.of(),
         List.of());
   }
 
