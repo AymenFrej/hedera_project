@@ -31,6 +31,7 @@ class EnginePaymentPolicyTest {
   private static final String NEW = "0.0.200";
 
   @Autowired private EnginePaymentPolicy policy;
+  @Autowired private PolicyStateProvider states;
   @Autowired private PaymentRepository payments;
 
   private PaymentEntity payment(String destination, long units, String envelope, String status) {
@@ -61,7 +62,7 @@ class EnginePaymentPolicyTest {
     // 1000 -> rent 500, essentials 300, emergency 200
     alreadyPaid(KNOWN, 100, "ESSENTIALS");
 
-    assertThat(policy.state(TOKEN).balances())
+    assertThat(states.state(TOKEN).balances())
         .containsEntry(Envelope.RENT, 500L)
         .containsEntry(Envelope.ESSENTIALS, 200L)
         .containsEntry(Envelope.EMERGENCY, 200L);
@@ -113,17 +114,17 @@ class EnginePaymentPolicyTest {
     payments.saveAndFlush(payment(KNOWN, 300, "ESSENTIALS", "AWAITING_APPROVAL"));
     payments.saveAndFlush(payment(KNOWN, 300, "ESSENTIALS", "REJECTED"));
 
-    assertThat(policy.state(TOKEN).balances()).containsEntry(Envelope.ESSENTIALS, 300L);
+    assertThat(states.state(TOKEN).balances()).containsEntry(Envelope.ESSENTIALS, 300L);
   }
 
   @Test
   void runway_configuration_is_validated() {
-    assertThat(EnginePaymentPolicy.parseRunways("hbar=5, 0.0.1=10"))
+    assertThat(PolicyStateProvider.parseRunways("hbar=5, 0.0.1=10"))
         .containsEntry("HBAR", 5L)
         .containsEntry("0.0.1", 10L);
-    assertThatThrownBy(() -> EnginePaymentPolicy.parseRunways("HBAR"))
+    assertThatThrownBy(() -> PolicyStateProvider.parseRunways("HBAR"))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> EnginePaymentPolicy.parseRunways("HBAR=0"))
+    assertThatThrownBy(() -> PolicyStateProvider.parseRunways("HBAR=0"))
         .isInstanceOf(IllegalArgumentException.class);
   }
 }
