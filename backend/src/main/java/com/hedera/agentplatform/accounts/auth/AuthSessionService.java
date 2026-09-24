@@ -1,34 +1,42 @@
 package com.hedera.agentplatform.accounts.auth;
 
 import com.hedera.agentplatform.accounts.entity.UserEntity;
-import java.util.Map;
+import com.hedera.agentplatform.accounts.repository.UserRepository;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
-/** Starter session service. Replace with Spring Security/JWT before production. */
 @Service
 public class AuthSessionService {
-    private final Map<String, UserEntity> sessions = new ConcurrentHashMap<>();
-
+    private record Session(String userId, Instant expires) {}
+    private final ConcurrentHashMap<String, Session> sessions = new ConcurrentHashMap<>();
+    private final UserRepository users;
+    public AuthSessionService(UserRepository users) { this.users = users; }
     public String create(UserEntity user) {
         String token = UUID.randomUUID().toString();
-        sessions.put(token, user);
+        sessions.put(token, new Session(user.id, Instant.now().plusSeconds(28800)));
         return token;
     }
-
     public UserEntity require(String authorization) {
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
-            throw new IllegalArgumentException("Authentication required");
+        String token = token(authorization);
+        Session session = sessions.get(token);
+        if (session == null || session.expires().isBefore(Instant.now())) {
+            sessions.remove(token);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Session expired. Please sign in.");
         }
-        UserEntity user = sessions.get(authorization.substring("Bearer ".length()).trim());
-        if (user == null) throw new IllegalArgumentException("Invalid session");
-        return user;
+        return users.findById(session.userId()).filter(u -> !"DISABLED".equals(u.role))
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account unavailable"));
     }
-
+    private String token(String authorization) {
+        if (authorization == null || !authorization.startsWith("Bearer "))
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Please sign in");
+        return authorization.substring(7).trim();
+    }
     public void invalidate(String authorization) {
-        if (authorization != null && authorization.startsWith("Bearer ")) sessions.remove(authorization.substring("Bearer ".length()).trim());
+        if (authorization != null && authorization.startsWith("Bearer ")) sessions.remove(authorization.substring(7).trim());
     }
-
-    public void invalidateUser(UserEntity user) { sessions.entrySet().removeIf(entry -> entry.getValue().id.equals(user.id)); }
+    public void invalidateUser(UserEntity user) { sessions.entrySet().removeIf(e -> e.getValue().userId().equals(user.id)); }
 }

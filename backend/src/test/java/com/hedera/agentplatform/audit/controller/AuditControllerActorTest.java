@@ -27,10 +27,21 @@ class AuditControllerActorTest {
 
     @Autowired private WebApplicationContext context;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private com.hedera.agentplatform.accounts.auth.AuthSessionService sessions;
+    @Autowired private com.hedera.agentplatform.accounts.repository.UserRepository users;
 
     @Test
     void an_actor_sent_by_the_client_is_ignored() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+        var admin = new com.hedera.agentplatform.accounts.entity.UserEntity();
+        admin.id = "audit-test-admin";
+        admin.email = "audit-test-admin@example.test";
+        admin.displayName = "Audit test admin";
+        admin.role = "ADMIN";
+        admin.accountId = "audit-test-wallet";
+        admin.passwordHash = "not-a-login-password";
+        users.save(admin);
+        String authorization = "Bearer " + sessions.create(admin);
 
         String body =
                 """
@@ -46,15 +57,15 @@ class AuditControllerActorTest {
 
         String json =
                 mockMvc
-                        .perform(post("/api/v1/audit").contentType(MediaType.APPLICATION_JSON).content(body))
+                        .perform(post("/api/v1/audit").header("Authorization", authorization).contentType(MediaType.APPLICATION_JSON).content(body))
                         .andReturn()
                         .getResponse()
                         .getContentAsString();
 
         AuditEventResponse response = objectMapper.readValue(json, AuditEventResponse.class);
 
-        assertThat(response.actorType()).isEqualTo(ActorType.SYSTEM.name());
-        assertThat(response.actorId()).isEqualTo("platform");
+        assertThat(response.actorType()).isEqualTo(ActorType.USER.name());
+        assertThat(response.actorId()).isEqualTo(admin.id);
         assertThat(response.actorHederaAccountId()).isNull();
     }
 }

@@ -16,7 +16,7 @@ public class AccountController {
     public AccountController(AccountService service) { this.service = service; }
 
     @GetMapping
-    List<AccountResponse> findAll() { return service.findAll(); }
+    List<AccountResponse> findAll(@RequestHeader(value = "Authorization", required = false) String authorization) { return List.of(service.current(authorization)); }
 
     @GetMapping("/me")
     AccountResponse current(@RequestHeader(value = "Authorization", required = false) String authorization) {
