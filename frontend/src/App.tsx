@@ -1,6 +1,50 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import AppShell from './layout/AppShell'
-import Dashboard from './pages/Dashboard'
 import FeaturePage from './pages/FeaturePage'
+import PoliciesPage from './pages/PoliciesPage'
+import ApprovalsPage from './pages/ApprovalsPage'
 import AuditPage from './pages/AuditPage'
-export default function App() { return <Routes><Route element={<AppShell/>}><Route path="/dashboard" element={<Dashboard/>}/><Route path="/accounts" element={<FeaturePage kind="accounts"/>}/><Route path="/payments" element={<FeaturePage kind="payments"/>}/><Route path="/tokens" element={<FeaturePage kind="tokens"/>}/><Route path="/audit" element={<AuditPage/>}/><Route path="/policies" element={<FeaturePage kind="policies"/>}/><Route path="/approvals" element={<FeaturePage kind="approvals"/>}/><Route path="*" element={<Navigate to="/dashboard" replace/>}/></Route></Routes> }
+import AuthPage from './pages/AuthPage'
+import RolePage from './pages/RolePage'
+import SettingsPage from './pages/SettingsPage'
+import AdminUsersPage from './pages/AdminUsersPage'
+import AccountsPage from './pages/AccountsPage'
+import { apiRequest, clearAuthToken, getAuthToken, getAuthUser, setAuthToken } from './api/client'
+import { canAccess } from './access'
+function Protected() {
+  const {pathname} = useLocation()
+  const [checked, setChecked] = useState('')
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let active = true
+    setError('')
+    if (!getAuthToken()) { setChecked(pathname); return }
+    apiRequest<{token:string; role:string}>('/auth/me').then(user => {
+      if (active) { setAuthToken(user.token, user); setChecked(pathname) }
+    }).catch(e => { if (active) { setError(e.message); setChecked(pathname) } })
+    return () => { active = false }
+  }, [pathname])
+  if (!getAuthToken()) return <Navigate to="/login" replace/>
+  if (checked !== pathname) return <p>Checking session…</p>
+  if (error) return <div role="alert">{error}<button onClick={() => { clearAuthToken(); window.location.assign('/login') }}>Sign in again</button></div>
+  if (!canAccess(getAuthUser()?.role, pathname)) return <Navigate to="/workspace" replace/>
+  return <AppShell/>
+}
+export default function App() {
+  return <Routes>
+    <Route path="/login" element={<AuthPage/>}/>
+    <Route element={<Protected/>}>
+      <Route path="/workspace" element={<RolePage/>}/>
+      <Route path="/settings" element={<SettingsPage/>}/>
+      <Route path="/admin/users" element={<AdminUsersPage/>}/>
+      <Route path="/accounts" element={<AccountsPage/>}/>
+      <Route path="/payments" element={<FeaturePage kind="payments"/>}/>
+      <Route path="/tokens" element={<FeaturePage kind="tokens"/>}/>
+      <Route path="/audit" element={<AuditPage/>}/>
+      <Route path="/policies" element={<PoliciesPage/>}/>
+      <Route path="/approvals" element={<ApprovalsPage/>}/>
+    </Route>
+    <Route path="*" element={<Navigate to="/workspace" replace/>}/>
+  </Routes>
+}

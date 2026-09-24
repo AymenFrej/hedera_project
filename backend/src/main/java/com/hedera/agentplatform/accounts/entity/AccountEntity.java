@@ -9,7 +9,10 @@ import java.math.BigDecimal;
 @Table(name = "accounts")
 public class AccountEntity {
     @Id public String id;
+    public String userId;
+    public String email;
     public String hederaAccountId;
+    public String encryptedPrivateKey;
     public BigDecimal balance;
     public String status;
 }

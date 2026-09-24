@@ -23,5 +23,6 @@ hedera:
   key-type: ${HEDERA_KEY_TYPE:ECDSA}
   # Leave blank to create a topic on first start; pin the id afterwards to reuse it.
   audit-topic-id: ${HEDERA_AUDIT_TOPIC_ID:}
+  account-key-encryption-secret: ${HEDERA_ACCOUNT_KEY_ENCRYPTION_SECRET:}
   # Verification reads go through the Mirror Node REST API, never through the SDK.
   mirror-node-url: ${HEDERA_MIRROR_NODE_URL:https://testnet.mirrornode.hedera.com}

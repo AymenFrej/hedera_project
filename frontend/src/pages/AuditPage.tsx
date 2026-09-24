@@ -12,6 +12,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import {
+  getAuthUser,
   getAuditStatus,
   listAuditEvents,
   recordAuditEvent,
@@ -105,10 +106,10 @@ export default function AuditPage() {
           <button className="button secondary" onClick={() => void refresh()} disabled={loading}>
             <RefreshCw size={15} /> Refresh
           </button>
-          <button className="button primary" onClick={() => void handleRecord()} disabled={recording}>
+          {['ADMIN', 'PLATFORM'].includes(getAuthUser()?.role ?? '') && <button className="button primary" onClick={() => void handleRecord()} disabled={recording}>
             {recording ? <Loader2 size={15} className="spin" /> : <Plus size={15} />}
             Record test event
-          </button>
+          </button>}
         </div>
       </div>
 
