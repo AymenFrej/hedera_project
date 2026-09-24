@@ -1,5 +1,6 @@
 package com.hedera.agentplatform.payments.hedera;
 
+import com.hedera.agentplatform.shared.security.ActorResolver;
 import com.hedera.hashgraph.sdk.Client;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,9 +17,16 @@ public class HederaPaymentGatewayConfig {
 
   private static final Logger log = LoggerFactory.getLogger(HederaPaymentGatewayConfig.class);
 
+  /**
+   * Signer, in order of preference: a {@link PaymentSigner} bean if one is declared; the user's own
+   * wallet when a {@link WalletKeys} bean exists (the Accounts module); otherwise the operator.
+   */
   @Bean
   HederaPaymentGateway hederaPaymentGateway(
-      ObjectProvider<Client> clientProvider, ObjectProvider<PaymentSigner> signerProvider) {
+      ObjectProvider<Client> clientProvider,
+      ObjectProvider<PaymentSigner> signerProvider,
+      ObjectProvider<WalletKeys> walletKeysProvider,
+      ActorResolver actorResolver) {
     Client client = clientProvider.getIfAvailable();
     if (client == null) {
       log.warn(
@@ -28,10 +36,15 @@ public class HederaPaymentGatewayConfig {
     }
 
     PaymentSigner signer = signerProvider.getIfAvailable();
+    WalletKeys walletKeys = walletKeysProvider.getIfAvailable();
+    if (signer == null && walletKeys != null) {
+      log.info("Payments leave from the signed-in user's own wallet (custodial keys).");
+      signer = new CustodialPaymentSigner(walletKeys, actorResolver);
+    }
     if (signer == null) {
       log.warn(
-          "No PaymentSigner bean: payments leave from the platform operator {}, not from user "
-              + "wallets. The Accounts module can replace this by declaring a PaymentSigner bean.",
+          "No WalletKeys bean: payments leave from the platform operator {}, not from user "
+              + "wallets. The Accounts module switches this on by declaring a WalletKeys bean.",
           client.getOperatorAccountId());
       signer = new OperatorPaymentSigner();
     }

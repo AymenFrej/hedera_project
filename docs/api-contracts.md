@@ -263,10 +263,17 @@ Known gaps, for the Policies module: envelopes have no asset or unit (the demo r
 fits PAYTEST, 0 decimals, not HBAR tinybars), and an envelope debited at decision time is not
 credited back when the Hedera transfer then fails.
 
-**Accounts — `PaymentSigner`.** Until one exists, `OperatorPaymentSigner` sends from the platform
-operator. A custodial signer returns the signed-in user's account from `payer(...)` and, in
-`prepare(...)`, sets the transaction id to that account, freezes the transaction and signs it with
-the user's key. Audit messages are not affected: they stay platform-signed.
+**Accounts — `WalletKeys`.** Payments pays from the signed-in user's own wallet as soon as a
+`WalletKeys` bean exists: given the actor (from `ActorResolver`, i.e. the session), it returns that
+user's account id and decrypted key. `CustodialPaymentSigner` then generates the transaction id for
+the user's account (the user pays the fee), sends the funds from it and signs with the user's key.
+Without a wallet (the platform itself, or no login yet) the operator pays, as before. Audit messages
+are not affected: the platform keeps signing those. Verified on testnet by `PaymentUserWalletLiveIT`
+(a real user account pays 0.1 ℏ and its fee; the Mirror Node shows it leaving that account).
+
+What the Accounts module needs to provide: an `ActorResolver` bean reading the session, a
+`WalletKeys` bean decrypting the stored key (`AccountKeyProtector` only encrypts today), and wallets
+created with some HBAR (a wallet with 0 cannot pay any fee).
 
 ## Agent task
 
