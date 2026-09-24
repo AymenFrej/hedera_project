@@ -193,6 +193,13 @@ export type PaymentVerification = {
   explorerUrl: string | null
 }
 
+/** One line of the safety summary, from a fact the backend holds or just checked. */
+export type SafetyRow = {
+  name: string
+  state: 'PASS' | 'FAIL' | 'WAITING' | 'NOT_APPLICABLE' | 'UNKNOWN'
+  detail: string
+}
+
 export type PaymentReceipt = {
   payment: Payment
   outcome: ReceiptOutcome
@@ -204,6 +211,7 @@ export type PaymentReceipt = {
   audit: AuditProof[]
   /** Only facts a backend check just confirmed. */
   badges: { policyChecked: boolean; ledgerVerified: boolean; auditVerified: boolean }
+  safety: SafetyRow[]
   network: string
 }
 

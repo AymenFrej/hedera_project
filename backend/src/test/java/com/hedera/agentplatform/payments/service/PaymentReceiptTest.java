@@ -15,6 +15,9 @@ import com.hedera.agentplatform.payments.hedera.HederaPaymentGateway;
 import com.hedera.agentplatform.payments.hedera.HederaPaymentGateway.Outcome;
 import com.hedera.agentplatform.payments.hedera.HederaPaymentGateway.PaymentResult;
 import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient;
+import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.AccountInfo;
+import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.AccountLookup;
+import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.LookupState;
 import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.MirrorLookup;
 import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient.MirrorTransaction;
 import com.hedera.agentplatform.payments.policy.PaymentPolicy;
@@ -48,6 +51,8 @@ class PaymentReceiptTest {
   void liveGateway() {
     when(gateway.isLive()).thenReturn(true);
     when(gateway.newTransactionId()).thenReturn(TX);
+    when(mirror.findAccount(anyString()))
+        .thenReturn(new AccountLookup(LookupState.FOUND, new AccountInfo(false, 0)));
   }
 
   private void policyAnswers(Verdict verdict, String ruleId) {
@@ -128,6 +133,39 @@ class PaymentReceiptTest {
     assertThat(r.payment().transactionId()).isNull();
     assertThat(r.payment().explorerUrl()).isNull();
     assertThat(r.payment().policyRuleId()).isEqualTo("funds.insufficient");
+  }
+
+  private static String row(PaymentReceipt r, String name) {
+    return r.safety().stream().filter(s -> s.name().equals(name)).findFirst().orElseThrow().state();
+  }
+
+  @Test
+  void the_safety_summary_of_a_blocked_payment_claims_nothing_that_did_not_happen() {
+    policyAnswers(Verdict.DENY, "funds.insufficient");
+
+    PaymentReceipt r = receipts.receipt(pay());
+
+    assertThat(row(r, "Identity")).as("no login yet").isEqualTo("NOT_APPLICABLE");
+    assertThat(row(r, "Policy")).isEqualTo("FAIL");
+    assertThat(row(r, "Approval")).as("never reached").isEqualTo("NOT_APPLICABLE");
+    assertThat(row(r, "Execution")).as("no transaction").isEqualTo("NOT_APPLICABLE");
+    assertThat(row(r, "Ledger")).isEqualTo("NOT_APPLICABLE");
+  }
+
+  @Test
+  void the_safety_summary_of_a_confirmed_payment_is_backed_by_the_ledger() {
+    policyAnswers(Verdict.ALLOW, "policy.ok");
+    hederaAnswers(Outcome.SUCCESS, "SUCCESS");
+    ledgerHas("SUCCESS", 1_000_000L);
+
+    PaymentReceipt r = receipts.receipt(pay());
+
+    assertThat(row(r, "Recipient")).isEqualTo("PASS");
+    assertThat(row(r, "Policy")).isEqualTo("PASS");
+    assertThat(row(r, "Approval")).isEqualTo("NOT_APPLICABLE");
+    assertThat(row(r, "Execution")).isEqualTo("PASS");
+    assertThat(row(r, "Ledger")).isEqualTo("PASS");
+    assertThat(row(r, "Audit")).as("tests have no HCS").isEqualTo("UNKNOWN");
   }
 
   @Test

@@ -25,7 +25,16 @@ public record PaymentReceipt(
     List<Step> timeline,
     List<AuditProof> audit,
     Badges badges,
+    List<SafetyRow> safety,
     String network) {
+
+  /**
+   * One line of the transaction safety summary, from a fact the backend holds or just checked.
+   *
+   * @param state PASS, FAIL, WAITING, NOT_APPLICABLE (the step was never reached or does not apply)
+   *     or UNKNOWN (could not be checked)
+   */
+  public record SafetyRow(String name, String state, String detail) {}
 
   /**
    * @param state DONE, FAILED, WAITING, or NOT_CREATED (something that deliberately did not happen)

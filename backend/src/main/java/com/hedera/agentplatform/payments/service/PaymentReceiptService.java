@@ -10,9 +10,12 @@ import com.hedera.agentplatform.audit.service.AuditService;
 import com.hedera.agentplatform.payments.dto.PaymentReceipt;
 import com.hedera.agentplatform.payments.dto.PaymentReceipt.AuditProof;
 import com.hedera.agentplatform.payments.dto.PaymentReceipt.Badges;
+import com.hedera.agentplatform.payments.dto.PaymentReceipt.SafetyRow;
 import com.hedera.agentplatform.payments.dto.PaymentReceipt.Step;
 import com.hedera.agentplatform.payments.dto.PaymentResponse;
 import com.hedera.agentplatform.payments.dto.PaymentVerification;
+import com.hedera.agentplatform.payments.dto.PolicyExplanation;
+import com.hedera.agentplatform.payments.mirror.PaymentMirrorClient;
 import com.hedera.agentplatform.shared.config.HederaProperties;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,12 +40,15 @@ public class PaymentReceiptService {
   private final PaymentAuditLookup auditLookup;
   private final AuditService auditService;
   private final HederaProperties properties;
+  private final PaymentMirrorClient mirror;
 
   public PaymentReceiptService(
       PaymentService payments,
       PaymentAuditLookup auditLookup,
       AuditService auditService,
-      HederaProperties properties) {
+      HederaProperties properties,
+      PaymentMirrorClient mirror) {
+    this.mirror = mirror;
     this.payments = payments;
     this.auditLookup = auditLookup;
     this.auditService = auditService;
@@ -82,6 +88,7 @@ public class PaymentReceiptService {
         timeline(payment, events),
         audit,
         badges,
+        safety(payment, ledger, events, audit),
         properties.getNetwork());
   }
 
@@ -138,6 +145,141 @@ public class PaymentReceiptService {
         verified,
         detail,
         explorerUrl);
+  }
+
+  /**
+   * The safety summary: one row per check, each from a fact. A row that cannot be backed by a
+   * fact says so (UNKNOWN or NOT_APPLICABLE) instead of showing a tick.
+   */
+  private List<SafetyRow> safety(
+      PaymentResponse p,
+      PaymentVerification ledger,
+      List<AuditEventEntity> events,
+      List<AuditProof> audit) {
+    List<SafetyRow> rows = new ArrayList<>();
+
+    rows.add(
+        "USER".equals(p.requestedByType())
+            ? new SafetyRow("Identity", "PASS", "Signed-in user " + p.requestedById())
+            : new SafetyRow("Identity", "NOT_APPLICABLE",
+                "Not verified: no login yet, attributed to " + p.requestedById()));
+
+    rows.add(recipientRow(p, ledger));
+
+    PolicyExplanation why = p.policyExplanation();
+    if (why == null || "policy.none".equals(p.policyRuleId())) {
+      rows.add(new SafetyRow("Policy", "UNKNOWN", "No policy engine decided on this payment"));
+    } else {
+      rows.add(new SafetyRow("Policy",
+          switch (why.verdict()) {
+            case "ALLOW" -> "PASS";
+            case "HOLD" -> "WAITING";
+            default -> "FAIL";
+          },
+          why.verdict() + " · " + why.ruleId() + " · " + why.reason()));
+      if (why.envelope() != null) {
+        rows.add(why.shortfall() != null
+            ? new SafetyRow("Envelope", "FAIL", why.envelope().toLowerCase()
+                + " held " + why.available() + ", short by " + why.shortfall())
+            : new SafetyRow("Envelope", why.available() == null ? "FAIL" : "PASS",
+                why.available() == null
+                    ? why.envelope().toLowerCase() + " is not funded"
+                    : why.envelope().toLowerCase() + " held " + why.available()));
+      }
+    }
+
+    rows.add(approvalRow(p, events));
+    rows.add(executionRow(p));
+
+    if (ledger == null) {
+      rows.add(new SafetyRow("Ledger", "NOT_APPLICABLE",
+          p.transactionId() == null ? "No transaction to check" : "Not checked: simulation mode"));
+    } else if (ledger.ledgerResult() == null) {
+      rows.add(new SafetyRow("Ledger", PaymentService.NEVER_REACHED.equals(p.failureReason())
+          ? "NOT_APPLICABLE" : "UNKNOWN", ledger.detail()));
+    } else {
+      rows.add(new SafetyRow("Ledger", ledger.verified() ? "PASS" : "FAIL", ledger.detail()));
+    }
+
+    long anchored = audit.stream().filter(a -> a.verified() != null).count();
+    long verified = audit.stream().filter(a -> Boolean.TRUE.equals(a.verified())).count();
+    if (audit.isEmpty()) {
+      rows.add(new SafetyRow("Audit", "UNKNOWN", "No audit event found for this payment"));
+    } else if (anchored == 0) {
+      rows.add(new SafetyRow("Audit", "UNKNOWN",
+          audit.size() + " event(s) recorded locally only, not on HCS"));
+    } else if (verified == audit.size()) {
+      rows.add(new SafetyRow("Audit", "PASS",
+          "All " + verified + " event(s) read back from HCS and matching"));
+    } else {
+      rows.add(new SafetyRow("Audit", "FAIL",
+          verified + " of " + audit.size() + " event(s) verified on HCS"));
+    }
+    return rows;
+  }
+
+  private SafetyRow recipientRow(PaymentResponse p, PaymentVerification ledger) {
+    if (ledger != null) {
+      boolean received = ledger.checks().stream()
+          .anyMatch(c -> c.name().equals("Recipient received") && c.ok());
+      if (received) {
+        return new SafetyRow("Recipient", "PASS", p.destination() + " received it (Mirror Node)");
+      }
+    }
+    if (!payments.isLedgerActive()) {
+      return new SafetyRow("Recipient", "UNKNOWN", "Not checked: simulation mode");
+    }
+    var account = mirror.findAccount(p.destination());
+    return switch (account.state()) {
+      case FOUND -> account.account().deleted()
+          ? new SafetyRow("Recipient", "FAIL", p.destination() + " has been deleted")
+          : new SafetyRow("Recipient", "PASS", p.destination() + " is a valid "
+              + properties.getNetwork() + " account");
+      case NOT_FOUND -> new SafetyRow("Recipient", "FAIL",
+          "No account " + p.destination() + " on " + properties.getNetwork());
+      case UNAVAILABLE -> new SafetyRow("Recipient", "UNKNOWN", "Mirror Node could not be reached");
+    };
+  }
+
+  private static SafetyRow approvalRow(PaymentResponse p, List<AuditEventEntity> events) {
+    for (AuditEventEntity e : events) {
+      if (e.action.endsWith("_APPROVAL")) {
+        switch (e.status) {
+          case "APPROVED" -> {
+            return new SafetyRow("Approval", "PASS", "Approved by a reviewer");
+          }
+          case "REJECTED" -> {
+            return new SafetyRow("Approval", "FAIL", "Rejected by a reviewer");
+          }
+          case "REFUSED" -> {
+            return new SafetyRow("Approval", "FAIL", "Could not be approved: " + p.failureReason());
+          }
+          default -> { }
+        }
+      }
+    }
+    if ("AWAITING_APPROVAL".equals(p.status())) {
+      return new SafetyRow("Approval", "WAITING", "Waiting for a reviewer");
+    }
+    if ("DENY".equals(p.policyVerdict())) {
+      return new SafetyRow("Approval", "NOT_APPLICABLE", "Not reached: the policy refused it");
+    }
+    return new SafetyRow("Approval", "NOT_APPLICABLE", "Not required by the policy");
+  }
+
+  private static SafetyRow executionRow(PaymentResponse p) {
+    return switch (p.status()) {
+      case "CONFIRMED" -> new SafetyRow("Execution", "PASS", "Confirmed by Hedera");
+      case "FAILED" -> PaymentService.NEVER_REACHED.equals(p.failureReason())
+          ? new SafetyRow("Execution", "FAIL", "Sent, never reached consensus")
+          : new SafetyRow("Execution", "FAIL", "Refused by Hedera: " + p.failureReason());
+      case "SUBMITTED" -> new SafetyRow("Execution", "WAITING", "Sent, no final result yet");
+      case "SIMULATED" -> new SafetyRow("Execution", "NOT_APPLICABLE",
+          "Simulated: nothing was sent");
+      default -> p.transactionId() == null
+          ? new SafetyRow("Execution", "NOT_APPLICABLE", "No Hedera transaction was created")
+          : new SafetyRow("Execution", "WAITING", "Not final yet");
+    };
   }
 
   private static String outcome(PaymentResponse p) {

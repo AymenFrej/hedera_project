@@ -19,6 +19,7 @@ import {
   type ReceiptStep,
 } from '../../api/client'
 import PolicyProtection from './PolicyProtection'
+import SafetySummary from './SafetySummary'
 
 const TONE: Record<ReceiptOutcome, 'ok' | 'warn' | 'danger'> = {
   CONFIRMED: 'ok',
@@ -173,6 +174,8 @@ export default function PaymentResultPanel({
           </div>
         </div>
       )}
+
+      <SafetySummary rows={receipt.safety} />
 
       <div className="result-grid">
         <div>

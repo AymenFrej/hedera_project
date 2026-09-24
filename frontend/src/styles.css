@@ -155,3 +155,15 @@
 .protection dd code{font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:#a594f7}
 .protection dd.short{color:#f28b93}
 .protection dd.not-created{color:#7ee0ac;font-family:'DM Mono',ui-monospace,monospace;font-size:10px}
+
+/* --- Transaction safety ---------------------------------------------------- */
+.safety{border:1px solid #242a37;border-radius:10px;padding:12px 16px;margin-bottom:16px;background:#12151d}
+.safety ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 24px}
+.safety li{display:grid;grid-template-columns:14px 78px 1fr;align-items:start;gap:8px;font-size:11px}
+.safety li b{color:#c8cedd}
+.safety li span{color:#8a93a6;line-height:1.45}
+.safety li.pass>svg{color:#7ee0ac}
+.safety li.fail>svg{color:#f28b93}
+.safety li.waiting>svg{color:#e8bd6b}
+.safety li.not_applicable>svg,.safety li.unknown>svg{color:#6d7488}
+@media (max-width:1100px){.safety ul{grid-template-columns:1fr}}
