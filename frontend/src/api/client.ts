@@ -158,6 +158,8 @@ export type DecideResponse = {
   auditEventId: string | null
   /** False when the decision never reached the ledger — shown rather than implied. */
   anchored: boolean
+  /** The envelopes as they stand after this decision, so the screen cannot go stale. */
+  envelopes: Record<string, number>
 }
 
 export type VerificationResult = {

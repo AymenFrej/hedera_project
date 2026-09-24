@@ -62,7 +62,8 @@ public class PolicyController {
         submission.decision().balanceAfter(),
         submission.approval() == null ? null : submission.approval().id(),
         submission.auditEventId(),
-        submission.anchored());
+        submission.anchored(),
+        state().envelopes());
   }
 
   private static PolicyEngine.Envelope envelopeOf(String name) {

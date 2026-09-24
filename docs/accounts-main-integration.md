@@ -1,6 +1,6 @@
 # Accounts branch integration
 
-The Accounts branch includes main through PR #26 and preserves its Policies, Approvals,
+The Accounts branch includes main through PR #30 and preserves its Policies, Approvals,
 audit APIs, error messages and styles. Login is now required for the protected UI and APIs.
 See [account-access.md](account-access.md) for the role matrix and account lifecycle.
 
@@ -60,4 +60,5 @@ App closure disables access while retaining the on-chain wallet and encrypted ke
 Passwords still use the inherited development hashing scheme; production hardening remains.
 
 The previously reviewed policy settlement concurrency/atomicity, audit payload verification,
-demo reset auditing and stale balance-card issues are not changed by this integration.
+and demo reset auditing issues are not changed by this integration. Main's PR #28 already
+refreshes balance cards from the decision response; that fix is preserved here.
