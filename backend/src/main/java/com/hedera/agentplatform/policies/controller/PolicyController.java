@@ -53,7 +53,9 @@ public class PolicyController {
         submission.decision().ruleId(),
         submission.decision().reason(),
         submission.decision().balanceAfter(),
-        submission.approval() == null ? null : submission.approval().id());
+        submission.approval() == null ? null : submission.approval().id(),
+        submission.auditEventId(),
+        submission.anchored());
   }
 
   private static PolicyEngine.Envelope envelopeOf(String name) {

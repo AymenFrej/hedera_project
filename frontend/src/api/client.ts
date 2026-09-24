@@ -122,6 +122,10 @@ export type DecideResponse = {
   balanceAfter: number | null
   /** Present only for HOLD: the handle a human uses to settle the request. */
   approvalId: string | null
+  /** The audit event this decision wrote. Open it on /audit to see the proof. */
+  auditEventId: string | null
+  /** False when the decision never reached the ledger — shown rather than implied. */
+  anchored: boolean
 }
 
 export type VerificationResult = {

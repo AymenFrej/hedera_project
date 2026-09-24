@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { CheckCircle2, Loader2, PauseCircle, ShieldCheck, XCircle } from 'lucide-react'
 import {
   decideSpend,
@@ -118,6 +119,12 @@ export default function PoliciesPage() {
             )}
             {decision.approvalId && (
               <p className="audit-meta">Approval request: {decision.approvalId}</p>
+            )}
+            {decision.auditEventId && (
+              <p className="audit-meta">
+                {decision.anchored ? 'Anchored as ' : 'Recorded (not yet on the ledger) as '}
+                <Link to="/audit">{decision.auditEventId}</Link>
+              </p>
             )}
           </div>
         )}
