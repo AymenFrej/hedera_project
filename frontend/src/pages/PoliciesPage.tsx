@@ -34,7 +34,13 @@ export default function PoliciesPage() {
     setDeciding(true)
     setError(null)
     try {
-      setDecision(await decideSpend({ envelope, amount: Number(amount), counterparty }))
+      const answer = await decideSpend({ envelope, amount: Number(amount), counterparty })
+      setDecision(answer)
+      // Repaint the cards from the same answer that carries the verdict: fetching them
+      // separately is how the screen ends up showing 500 rent next to a spend of 400.
+      setState(current =>
+        current ? { ...current, envelopes: answer.envelopes } : current,
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Backend unreachable')
     } finally {
