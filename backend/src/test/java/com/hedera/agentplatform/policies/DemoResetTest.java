@@ -31,9 +31,9 @@ class DemoResetTest {
     ledger.reset();
 
     assertThat(ledger.state().balances())
-        .containsEntry(Envelope.RENT, 500L)
-        .containsEntry(Envelope.ESSENTIALS, 300L)
-        .containsEntry(Envelope.EMERGENCY, 200L);
+        .containsEntry(Envelope.RENT, 500L * 100_000_000L)
+        .containsEntry(Envelope.ESSENTIALS, 300L * 100_000_000L)
+        .containsEntry(Envelope.EMERGENCY, 200L * 100_000_000L);
   }
 
   @Test

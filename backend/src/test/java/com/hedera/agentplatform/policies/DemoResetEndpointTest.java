@@ -37,9 +37,9 @@ class DemoResetEndpointTest {
     mockMvc
         .perform(post("/api/v1/policies/demo/reset"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.envelopes.RENT").value(500))
-        .andExpect(jsonPath("$.envelopes.ESSENTIALS").value(300))
-        .andExpect(jsonPath("$.envelopes.EMERGENCY").value(200));
+        .andExpect(jsonPath("$.envelopes.RENT").value(50_000_000_000L))
+        .andExpect(jsonPath("$.envelopes.ESSENTIALS").value(30_000_000_000L))
+        .andExpect(jsonPath("$.envelopes.EMERGENCY").value(20_000_000_000L));
 
     mockMvc
         .perform(get("/api/v1/policies/approvals"))

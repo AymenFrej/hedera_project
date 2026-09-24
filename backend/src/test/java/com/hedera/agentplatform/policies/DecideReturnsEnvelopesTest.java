@@ -34,11 +34,12 @@ class DecideReturnsEnvelopesTest {
         .perform(
             post("/api/v1/policies/decide")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"envelope\":\"RENT\",\"amount\":100,\"counterparty\":\"landlord-tunis\"}"))
+                .content(
+                    "{\"envelope\":\"RENT\",\"amount\":10000000000,\"counterparty\":\"landlord-tunis\"}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.verdict").value("ALLOW"))
-        .andExpect(jsonPath("$.envelopes.RENT").value(400))
-        .andExpect(jsonPath("$.envelopes.ESSENTIALS").value(300));
+        .andExpect(jsonPath("$.envelopes.RENT").value(40_000_000_000L))
+        .andExpect(jsonPath("$.envelopes.ESSENTIALS").value(30_000_000_000L));
   }
 
   @Test
@@ -48,9 +49,9 @@ class DecideReturnsEnvelopesTest {
             post("/api/v1/policies/decide")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                    "{\"envelope\":\"EMERGENCY\",\"amount\":50,\"counterparty\":\"landlord-tunis\"}"))
+                    "{\"envelope\":\"EMERGENCY\",\"amount\":5000000000,\"counterparty\":\"landlord-tunis\"}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.verdict").value("HOLD"))
-        .andExpect(jsonPath("$.envelopes.EMERGENCY").value(200));
+        .andExpect(jsonPath("$.envelopes.EMERGENCY").value(20_000_000_000L));
   }
 }

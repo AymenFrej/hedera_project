@@ -22,6 +22,14 @@ public class ApprovalEntity {
   @Column(name = "requested_at")
   public Instant requestedAt;
 
+  /**
+   * Insert order, so the queue can break a timestamp tie. Two approvals created in the same
+   * millisecond are indistinguishable by requestedAt, and the id is a random UUID, so without this
+   * the "newest first" queue was only usually newest first.
+   */
+  @Column(name = "sequence", insertable = false, updatable = false)
+  public Long sequence;
+
   @Column(name = "rule_id")
   public String ruleId;
 

@@ -42,7 +42,8 @@ const Accounts = await screen('AccountsPage')
 const Auth = await screen('AuthPage')
 const Sidebar = (await import(await moduleUrl(new URL('../src/layout/Sidebar.tsx', import.meta.url)))).default
 let tree, calls, fixtures
-const state = { envelopes: { RENT: 500, ESSENTIALS: 300, EMERGENCY: 200 }, knownCounterparties: ['landlord-tunis'] }
+// Envelopes arrive in tinybars, as the API sends them: 500 ℏ, 300 ℏ, 200 ℏ.
+const state = { envelopes: { RENT: 50_000_000_000, ESSENTIALS: 30_000_000_000, EMERGENCY: 20_000_000_000 }, knownCounterparties: ['landlord-tunis'] }
 const event = { id: 'audit_1', agent: 'PolicyAgent', action: 'DECIDE', status: 'SUCCESS', createdAt: null, anchorStatus: 'ANCHORED', actorId: 'admin_demo', actorType: 'USER', sequenceNumber: 1, payloadHash: 'abc' }
 beforeEach(() => {
   const storage = new Map([['hedera.auth.token', 'test-token'], ['hedera.auth.user', JSON.stringify({ role: 'ADMIN', userId: 'admin_demo' })]])
@@ -70,10 +71,15 @@ test('policy screen loads real rulebook, validates amounts and links the returne
   await mount(Policies)
   assert.match(text(tree.toJSON()), /policy.ok/)
   const amount = tree.root.findByProps({ type: 'number' })
+  // Amounts are entered in ℏ, so 1.5 is real money and must be accepted; 0 never is.
+  await flush(() => amount.props.onChange({ target: { value: '0' } }))
+  await flush(() => tree.root.findByType('form').props.onSubmit({ preventDefault() {} }))
+  assert.match(text(tree.toJSON()), /positive amount/)
+  assert.equal(calls.filter(call => call.path === '/policies/decide').length, 0)
   await flush(() => amount.props.onChange({ target: { value: '1.5' } }))
   await flush(() => tree.root.findByType('form').props.onSubmit({ preventDefault() {} }))
-  assert.match(text(tree.toJSON()), /positive whole-number/)
-  assert.equal(calls.filter(call => call.path === '/policies/decide').length, 0)
+  // 1.5 ℏ reaches the engine as 150000000 tinybars.
+  assert.equal(JSON.parse(calls.find(call => call.path === '/policies/decide').body).amount, 150_000_000)
   await flush(() => amount.props.onChange({ target: { value: '50' } }))
   await flush(() => tree.root.findByType('form').props.onSubmit({ preventDefault() {} }))
   const links = tree.root.findAllByType('a').map(node => node.props.href)
@@ -95,7 +101,7 @@ test('policy load failures show an error and keep evaluation disabled', async ()
 })
 
 test('approval filters, confirmation and decision history use the backend response', async () => {
-  const pending = { id: 'approval_1', status: 'PENDING', amount: 50, counterparty: 'landlord', envelope: 'EMERGENCY', ruleId: 'emergency.human', reason: 'Needs review', taskId: 'audit_1' }
+  const pending = { id: 'approval_1', status: 'PENDING', amount: 5_000_000_000, counterparty: 'landlord', envelope: 'EMERGENCY', ruleId: 'emergency.human', reason: 'Needs review', taskId: 'audit_1' }
   fixtures['/policies/approvals'] = [pending, { ...pending, id: 'approval_2', status: 'REJECTED' }]
   fixtures['/policies/approvals/approval_1/approve'] = { ...pending, status: 'APPROVED', decidedAt: '2026-09-24T10:00:00Z', decidedBy: 'admin_demo' }
   await mount(Approvals)

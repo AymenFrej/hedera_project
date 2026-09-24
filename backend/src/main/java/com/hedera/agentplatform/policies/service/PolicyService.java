@@ -7,4 +7,4 @@ import org.springframework.stereotype.Service;
 @Service public class PolicyService { private final ApprovalRepository approvalRepository; public PolicyService(ApprovalRepository approvalRepository) { this.approvalRepository = approvalRepository; }
   /** The rules the engine applies, readable before a spend instead of inferred from a verdict after one. */
   public List<RuleResponse> rulebook() { return Rulebook.rules().stream().map(rule -> new RuleResponse(rule.ruleId(), rule.verdict().name(), rule.reason())).toList(); }
-  public List<ApprovalResponse> approvals() { return approvalRepository.findAllByOrderByRequestedAtDesc().stream().map(ApprovalService::toResponse).toList(); } }
+  public List<ApprovalResponse> approvals() { return approvalRepository.findAllByOrderByRequestedAtDescSequenceDesc().stream().map(ApprovalService::toResponse).toList(); } }
