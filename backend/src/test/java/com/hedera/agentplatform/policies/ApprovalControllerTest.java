@@ -49,6 +49,18 @@ class ApprovalControllerTest {
   }
 
   @Test
+  void answering_the_same_request_twice_is_a_409_not_a_500() throws Exception {
+    MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+    String id = pendingApprovalId();
+
+    mockMvc.perform(post("/api/v1/policies/approvals/{id}/approve", id)).andExpect(status().isOk());
+
+    mockMvc
+        .perform(post("/api/v1/policies/approvals/{id}/reject", id))
+        .andExpect(status().isConflict());
+  }
+
+  @Test
   void answering_an_unknown_approval_is_a_404_not_a_500() throws Exception {
     MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
 

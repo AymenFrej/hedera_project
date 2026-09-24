@@ -79,6 +79,8 @@ public class PolicyController {
       return approvals.approve(id);
     } catch (IllegalArgumentException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+    } catch (IllegalStateException e) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
     }
   }
 
@@ -88,6 +90,8 @@ public class PolicyController {
       return approvals.reject(id);
     } catch (IllegalArgumentException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+    } catch (IllegalStateException e) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
     }
   }
 }
