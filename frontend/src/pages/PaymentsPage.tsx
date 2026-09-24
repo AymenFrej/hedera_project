@@ -226,7 +226,7 @@ export default function PaymentsPage() {
             <input
               required
               inputMode="decimal"
-              placeholder={form.tokenId ? '500 (smallest unit)' : '10 HBAR'}
+              placeholder={form.tokenId ? `amount in ${symbolOf(form.tokenId)}` : '10 HBAR'}
               value={form.amount}
               onChange={(e) => updateForm({ ...form, amount: e.target.value })}
             />

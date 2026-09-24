@@ -58,6 +58,7 @@ public class PaymentService {
   private final ActorResolver actorResolver;
   private final PaymentMirrorClient mirrorClient;
   private final PolicyLocks policyLocks;
+  private final TokenDecimals decimals;
 
   public PaymentService(
       PaymentRepository repository,
@@ -67,8 +68,10 @@ public class PaymentService {
       HederaProperties properties,
       ActorResolver actorResolver,
       PaymentMirrorClient mirrorClient,
-      PolicyLocks policyLocks) {
+      PolicyLocks policyLocks,
+      TokenDecimals decimals) {
     this.policyLocks = policyLocks;
+    this.decimals = decimals;
     this.actorResolver = actorResolver;
     this.mirrorClient = mirrorClient;
     this.repository = repository;
@@ -141,7 +144,8 @@ public class PaymentService {
     payment.tokenId = blankToNull(request.tokenId());
     payment.currency = payment.tokenId == null ? "HBAR" : payment.tokenId;
     payment.amount = new BigDecimal(request.amount());
-    payment.amountUnits = toUnits(payment.amount, payment.tokenId == null);
+    payment.amountUnits =
+        toUnits(payment.amount, decimals.of(payment.tokenId), payment.currency);
     payment.envelope =
         blankToNull(request.envelope()) == null
             ? null
@@ -589,22 +593,22 @@ public class PaymentService {
   }
 
   /**
-   * Converts the requested amount to the unit actually sent. HBAR goes to tinybars (8 decimals);
-   * token amounts are already in the smallest unit and must be whole.
+   * Converts the amount a person typed into the unit actually sent: tinybars for HBAR (8 decimals),
+   * the token's smallest unit for an HTS token (its own decimals). An amount finer than one smallest
+   * unit is refused rather than rounded.
    */
-  static long toUnits(BigDecimal amount, boolean hbar) {
+  static long toUnits(BigDecimal amount, int decimals, String asset) {
     if (amount.signum() <= 0) {
       throw new IllegalArgumentException("amount must be greater than zero");
     }
     try {
-      return hbar
-          ? amount.movePointRight(HBAR_DECIMALS).longValueExact()
-          : amount.longValueExact();
+      return amount.movePointRight(decimals).longValueExact();
     } catch (ArithmeticException e) {
       throw new IllegalArgumentException(
-          hbar
-              ? "HBAR amounts support at most 8 decimals"
-              : "token amounts are in the token's smallest unit and must be whole numbers");
+          ("HBAR".equals(asset) ? "HBAR" : "Token " + asset)
+              + " supports at most "
+              + decimals
+              + " decimals");
     }
   }
 

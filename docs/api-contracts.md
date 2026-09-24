@@ -69,8 +69,10 @@ request → policy (ALLOW / HOLD / DENY) → [human approval if HOLD] → Hedera
 | `GET` | `/api/v1/payments/balance` | balances of the paying account (HBAR + associated tokens), from the Mirror Node |
 | `GET` | `/api/v1/payments/status` | `{ "ledgerActive": true, "demoTokenId": "0.0.…", "demoRecipientId": "0.0.…" }` |
 
-`POST /api/v1/payments` body. Omit `tokenId` for HBAR. HBAR amounts accept up to 8 decimals
-(1 tinybar); token amounts are in the token's **smallest unit** and must be whole numbers.
+`POST /api/v1/payments` body. Omit `tokenId` for HBAR. `amount` is what a person types: HBAR accepts
+up to 8 decimals (1 tinybar), a token up to its own decimals, read once from the Mirror Node
+(`1.5` of a 6-decimal token is sent as 1,500,000). Anything finer is refused rather than rounded; an
+unknown token is refused before anything is sent; `503` when the Mirror Node cannot be asked.
 
 ```json
 { "destination": "0.0.4242", "amount": "12.5", "tokenId": null, "envelope": "ESSENTIALS", "memo": "rent share" }

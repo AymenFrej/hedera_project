@@ -1,6 +1,8 @@
 package com.hedera.agentplatform.payments.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyString;
 
 import com.hedera.agentplatform.payments.dto.CreatePaymentRequest;
 import com.hedera.agentplatform.payments.dto.PaymentReceipt;
@@ -11,9 +13,11 @@ import com.hedera.agentplatform.policies.dto.ApprovalResponse;
 import com.hedera.agentplatform.policies.service.ApprovalService;
 import com.hedera.agentplatform.policies.service.EnvelopeLedger;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -28,9 +32,19 @@ class PaymentPolicyIntegrationTest {
   private static final String RECIPIENT = "0.0.4242";
 
   @Autowired private PaymentService payments;
+
   @Autowired private PaymentReceiptService receipts;
   @Autowired private ApprovalService approvals;
   @Autowired private EnvelopeLedger ledger;
+
+  /** Token decimals without asking the real Mirror Node. */
+  @MockitoBean private TokenDecimals decimals;
+
+  @BeforeEach
+  void tokenDecimals() {
+    when(decimals.of(null)).thenReturn(TokenDecimals.HBAR);
+    when(decimals.of(anyString())).thenReturn(0);
+  }
 
   private PaymentResponse pay(long amount, String envelope) {
     return payments.create(

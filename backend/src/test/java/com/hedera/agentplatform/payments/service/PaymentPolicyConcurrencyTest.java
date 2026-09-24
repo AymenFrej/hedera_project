@@ -1,6 +1,8 @@
 package com.hedera.agentplatform.payments.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyString;
 
 import com.hedera.agentplatform.payments.dto.CreatePaymentRequest;
 import com.hedera.agentplatform.payments.dto.PaymentResponse;
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
  * Two payments decided at the same instant must not both spend the same envelope money.
@@ -32,8 +35,18 @@ class PaymentPolicyConcurrencyTest {
   private static final String RECIPIENT = "0.0.8801";
 
   @Autowired private PaymentService payments;
+
   @Autowired private PaymentRepository repository;
   @Autowired private EnvelopeLedger ledger;
+
+  /** Token decimals without asking the real Mirror Node. */
+  @MockitoBean private TokenDecimals decimals;
+
+  @BeforeEach
+  void tokenDecimals() {
+    when(decimals.of(null)).thenReturn(TokenDecimals.HBAR);
+    when(decimals.of(anyString())).thenReturn(0);
+  }
 
   private CreatePaymentRequest essentials(long units) {
     return new CreatePaymentRequest(RECIPIENT, String.valueOf(units), TOKEN, "ESSENTIALS", null);

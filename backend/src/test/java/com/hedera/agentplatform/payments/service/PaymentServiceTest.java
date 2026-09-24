@@ -2,6 +2,7 @@ package com.hedera.agentplatform.payments.service;
 
 import org.mockito.Answers;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -14,6 +15,7 @@ import com.hedera.agentplatform.payments.policy.PaymentPolicy.PaymentPolicyDecis
 import com.hedera.agentplatform.payments.policy.PaymentPolicy.Verdict;
 import com.hedera.agentplatform.payments.repository.PaymentRepository;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,6 +34,15 @@ class PaymentServiceTest {
   @Autowired private AuditEventRepository auditEvents;
   @Autowired private PaymentRepository payments;
   @MockitoBean(answers = Answers.CALLS_REAL_METHODS) private PaymentPolicy policy;
+
+  /** Token decimals without asking the real Mirror Node. */
+  @MockitoBean private TokenDecimals decimals;
+
+  @BeforeEach
+  void tokenDecimals() {
+    when(decimals.of(null)).thenReturn(TokenDecimals.HBAR);
+    when(decimals.of(anyString())).thenReturn(0);
+  }
 
   private static CreatePaymentRequest hbar(String amount) {
     return new CreatePaymentRequest("0.0.4242", amount, null, "essentials", "rent share");
@@ -115,6 +126,18 @@ class PaymentServiceTest {
     assertThat(payment.currency()).isEqualTo("0.0.7777");
     assertThat(payment.tokenId()).isEqualTo("0.0.7777");
     assertThat(payment.status()).isEqualTo("SIMULATED");
+  }
+
+  @Test
+  void a_token_amount_is_converted_with_the_token_decimals() {
+    policyAnswers(Verdict.ALLOW, "policy.ok");
+    when(decimals.of("0.0.2222")).thenReturn(2);
+
+    PaymentResponse payment =
+        service.create(new CreatePaymentRequest("0.0.4242", "5.25", "0.0.2222", null, null));
+
+    assertThat(payments.findById(payment.id()).orElseThrow().amountUnits).isEqualTo(525L);
+    assertThat(payment.amount()).isEqualTo("5.25");
   }
 
   @Test

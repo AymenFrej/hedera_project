@@ -1,6 +1,7 @@
 package com.hedera.agentplatform.payments;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -131,12 +132,13 @@ class PaymentTokenLiveIT {
   @Test
   @Order(4)
   void an_invalid_token_or_recipient_fails_without_moving_anything() {
-    PaymentResponse badToken = pay(associated, "0.0.999999999", 1);
-    PaymentResponse badRecipient = pay("0.0.999999999", token, 1);
+    // A token that does not exist has no decimals to read: refused before anything is sent.
+    assertThatThrownBy(() -> pay(associated, "0.0.999999999", 1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("No token 0.0.999999999");
 
-    assertThat(badToken.status()).isEqualTo("FAILED");
+    PaymentResponse badRecipient = pay("0.0.999999999", token, 1);
     assertThat(badRecipient.status()).isEqualTo("FAILED");
-    System.out.printf(
-        "LIVE_INVALID token=%s recipient=%s%n", badToken.failureReason(), badRecipient.failureReason());
+    System.out.println("LIVE_INVALID recipient=" + badRecipient.failureReason());
   }
 }
