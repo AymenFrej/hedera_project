@@ -13,6 +13,7 @@ import com.hedera.agentplatform.shared.model.Actor;
 import com.hedera.agentplatform.shared.security.ActorResolver;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -78,6 +79,11 @@ public class ApprovalService {
 
     return new Submission(
         decision, toResponse(repository.save(entity)), recorded.auditEvent().id, recorded.anchored());
+  }
+
+  /** The questions still waiting for a human. */
+  public List<ApprovalResponse> pending() {
+    return repository.findByStatus("PENDING").stream().map(ApprovalService::toResponse).toList();
   }
 
   /** Records a human's approval of a pending request. The answer is itself an audit event. */
