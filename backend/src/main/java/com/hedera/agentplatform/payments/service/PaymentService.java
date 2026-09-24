@@ -57,6 +57,7 @@ public class PaymentService {
   private final HederaProperties properties;
   private final ActorResolver actorResolver;
   private final PaymentMirrorClient mirrorClient;
+  private final PolicyLocks policyLocks;
 
   public PaymentService(
       PaymentRepository repository,
@@ -65,7 +66,9 @@ public class PaymentService {
       AuditService auditService,
       HederaProperties properties,
       ActorResolver actorResolver,
-      PaymentMirrorClient mirrorClient) {
+      PaymentMirrorClient mirrorClient,
+      PolicyLocks policyLocks) {
+    this.policyLocks = policyLocks;
     this.actorResolver = actorResolver;
     this.mirrorClient = mirrorClient;
     this.repository = repository;
@@ -110,17 +113,12 @@ public class PaymentService {
       return replay(repository.findByIdempotencyKey(key).orElseThrow(() -> e), request);
     }
 
-    PaymentPolicyDecision decision = policy.evaluate(payment);
-    payment.policyVerdict = decision.verdict().name();
-    payment.policyRuleId = decision.ruleId();
-    payment.policyReason = decision.reason();
-    payment.status =
-        switch (decision.verdict()) {
-          case ALLOW -> PaymentStatus.PENDING.name();
-          case HOLD -> PaymentStatus.AWAITING_APPROVAL.name();
-          case DENY -> PaymentStatus.REJECTED.name();
-        };
-    payment = touch(payment);
+    // Decide and commit the verdict under the asset's lock: an allowed payment counts against its
+    // envelope from this point on, so a concurrent payment is decided on the reduced balance.
+    PaymentEntity saved = payment;
+    PaymentPolicyDecision decision =
+        policyLocks.withLock(saved.currency, () -> decideAndCommit(saved));
+    payment = repository.findById(saved.id).orElseThrow();
     audit("PAYMENT_POLICY", decision.verdict().name(), payment);
 
     if (decision.verdict() == PaymentPolicy.Verdict.ALLOW) {
@@ -168,13 +166,52 @@ public class PaymentService {
     return toResponse(existing);
   }
 
-  /** A human approves a held payment; it is sent immediately. */
+  private PaymentPolicyDecision decideAndCommit(PaymentEntity payment) {
+    PaymentPolicyDecision decision = policy.evaluate(payment);
+    payment.policyVerdict = decision.verdict().name();
+    payment.policyRuleId = decision.ruleId();
+    payment.policyReason = decision.reason();
+    payment.status =
+        switch (decision.verdict()) {
+          case ALLOW -> PaymentStatus.PENDING.name();
+          case HOLD -> PaymentStatus.AWAITING_APPROVAL.name();
+          case DENY -> PaymentStatus.REJECTED.name();
+        };
+    touch(payment);
+    return decision;
+  }
+
+  /**
+   * A human approves a held payment; it is sent immediately.
+   *
+   * <p>The policy is asked again first. A reviewer answers a HOLD, not a DENY: if the envelope was
+   * used up while the payment waited, approving it would spend money the envelope no longer has,
+   * so the payment is refused instead.
+   */
   public PaymentResponse approve(String id) {
-    PaymentEntity payment = requireAwaitingApproval(id);
-    // Claim the payment first: if two approvals race, the optimistic lock rejects the second one
-    // here, before anything is written to the audit trail or sent to Hedera.
-    payment.status = PaymentStatus.SUBMITTED.name();
-    payment = touch(payment);
+    PaymentEntity held = requireAwaitingApproval(id);
+    PaymentEntity payment =
+        policyLocks.withLock(
+            held.currency,
+            () -> {
+              PaymentPolicyDecision now = policy.evaluate(held);
+              if (now.verdict() == PaymentPolicy.Verdict.DENY) {
+                held.policyVerdict = now.verdict().name();
+                held.policyRuleId = now.ruleId();
+                held.policyReason = now.reason();
+                held.status = PaymentStatus.REJECTED.name();
+                held.failureReason = "the policy now refuses it: " + now.reason();
+                return touch(held);
+              }
+              // Claim the payment inside the lock: it counts against its envelope from here, and
+              // if two approvals race, the optimistic lock rejects the second one.
+              held.status = PaymentStatus.SUBMITTED.name();
+              return touch(held);
+            });
+    if (PaymentStatus.REJECTED.name().equals(payment.status)) {
+      audit("PAYMENT_POLICY", "DENY", payment);
+      return toResponse(payment);
+    }
     audit("PAYMENT_APPROVAL", "APPROVED", payment);
     return toResponse(execute(payment));
   }

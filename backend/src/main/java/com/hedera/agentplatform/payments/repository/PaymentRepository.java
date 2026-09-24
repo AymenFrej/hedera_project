@@ -12,10 +12,14 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, String> 
 
   Optional<PaymentEntity> findByIdempotencyKey(String idempotencyKey);
 
-  /** Rows of [envelope, sum of amountUnits] for one asset, over payments in the given statuses. */
+  /**
+   * Rows of [envelope, sum of amountUnits] for one asset, over payments in the given statuses plus
+   * payments already allowed by the policy and about to be sent (PENDING + ALLOW).
+   */
   @Query(
       "select p.envelope, sum(p.amountUnits) from PaymentEntity p"
-          + " where p.currency = :asset and p.status in :statuses and p.envelope is not null"
+          + " where p.currency = :asset and p.envelope is not null"
+          + " and (p.status in :statuses or (p.status = 'PENDING' and p.policyVerdict = 'ALLOW'))"
           + " group by p.envelope")
   List<Object[]> committedByEnvelope(
       @Param("asset") String asset, @Param("statuses") List<String> statuses);
