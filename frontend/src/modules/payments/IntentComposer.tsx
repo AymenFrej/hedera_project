@@ -17,19 +17,22 @@ const EMPTY = { recipient: '', amount: '', asset: '', envelope: 'essentials', ke
  * or guessed. "Understand" resolves each field on the backend and shows where each value came from.
  */
 export default function IntentComposer({
+  initialAsset = '',
   contacts,
   assetSymbols,
   onContactsChanged,
   onPreview,
   previewing,
 }: {
+  /** e.g. from "Send with Payments" on a token's passport */
+  initialAsset?: string
   contacts: Contact[]
   assetSymbols: string[]
   onContactsChanged: () => void
   onPreview: (request: CreatePaymentRequest) => void
   previewing: boolean
 }) {
-  const [intent, setIntent] = useState(EMPTY)
+  const [intent, setIntent] = useState({ ...EMPTY, asset: initialAsset })
   const [understanding, setUnderstanding] = useState<IntentUnderstanding | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

@@ -33,12 +33,17 @@ final class ModelJson {
 
   /** JSON Schema of {@link ExtractedIntent}; Gemini wants its type names in upper case. */
   static Map<String, Object> intentSchema(boolean upperCaseTypes) {
+    return schemaOf(ExtractedIntent.class, upperCaseTypes);
+  }
+
+  /** JSON Schema of a record of booleans and strings, with its {@link JsonPropertyDescription}s. */
+  static Map<String, Object> schemaOf(Class<?> type, boolean upperCaseTypes) {
     Map<String, Object> properties = new LinkedHashMap<>();
     List<String> names = new ArrayList<>();
-    for (RecordComponent c : ExtractedIntent.class.getRecordComponents()) {
-      String type = c.getType() == boolean.class ? "boolean" : "string";
+    for (RecordComponent c : type.getRecordComponents()) {
+      String kind = c.getType() == boolean.class ? "boolean" : "string";
       Map<String, Object> property = new LinkedHashMap<>();
-      property.put("type", upperCaseTypes ? type.toUpperCase(Locale.ROOT) : type);
+      property.put("type", upperCaseTypes ? kind.toUpperCase(Locale.ROOT) : kind);
       JsonPropertyDescription description = c.getAccessor().getAnnotation(JsonPropertyDescription.class);
       if (description != null) {
         property.put("description", description.value());
@@ -55,8 +60,12 @@ final class ModelJson {
 
   /** The model's JSON answer as an intent, or an {@link IntentExtractor.ExtractionException}. */
   static ExtractedIntent parseIntent(String text) {
+    return parse(text, ExtractedIntent.class);
+  }
+
+  static <T> T parse(String text, Class<T> type) {
     try {
-      return JSON.readValue(text, ExtractedIntent.class);
+      return JSON.readValue(text, type);
     } catch (IOException e) {
       throw new IntentExtractor.ExtractionException("The language model did not return a valid request");
     }

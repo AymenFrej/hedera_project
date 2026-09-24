@@ -275,6 +275,46 @@ What the Accounts module needs to provide: an `ActorResolver` bean reading the s
 `WalletKeys` bean decrypting the stored key (`AccountKeyProtector` only encrypts today), and wallets
 created with some HBAR (a wallet with 0 cannot pay any fee).
 
+## Tokens
+
+Design a fungible HTS token, see what it will promise, create it, mint more, and read everything
+about any token back from the Mirror Node. Same path as a payment: preview, then create with an
+`Idempotency-Key`, committed with its transaction id before it is sent, audited on HCS
+(`TokenAgent`: `TOKEN_CREATE`, `TOKEN_MINT`, `TOKEN_SETTLED`), verified against the Mirror Node.
+Without Hedera credentials every operation is `SIMULATED`, with no token id.
+
+Tokens are created with the platform operator as treasury and **no admin, freeze, wipe, KYC, pause
+or fee-schedule key**: nobody (this platform included) can later change or delete them, freeze or
+wipe a holder, or add fees. The supply key is kept only for a mintable token.
+
+| Supply policy | On the ledger | Mint later |
+|---|---|---|
+| `FIXED` | `FINITE`, cap = initial supply, no supply key | never |
+| `CAPPED` | `FINITE`, cap = `maxSupply`, supply key = operator | up to the cap |
+| `UNLIMITED` | `INFINITE`, supply key = operator | without a cap |
+
+| Method | Path | |
+|---|---|---|
+| `GET` | `/api/v1/tokens` | tokens held by the treasury (Mirror Node) |
+| `POST` | `/api/v1/tokens/preview` | validates a `TokenDraft`, lists its promises; nothing is sent |
+| `POST` | `/api/v1/tokens` | creates it (`Idempotency-Key` header) |
+| `POST` | `/api/v1/tokens/intent/interpret` | `{ "text" }`: the configured language model fills a `TokenDraft` |
+| `GET` | `/api/v1/tokens/operations` | a USER sees their own, an ADMIN all |
+| `GET` | `/api/v1/tokens/operations/{id}/verification` | compares with the ledger, reads the real fee, settles a missing receipt |
+| `GET` | `/api/v1/tokens/{tokenId}/passport` | facts, keys as promises, holders and treasury share |
+| `POST` | `/api/v1/tokens/{tokenId}/mint/preview` · `/mint` | `{ "amount" }`; only when the supply key is the platform's, never above the cap |
+| `GET` | `/api/v1/tokens/{tokenId}/receivable/{accountId}` | associated, auto-associates, or must associate first |
+
+```json
+{ "name": "Coffee Beans", "symbol": "BEAN", "decimals": "2", "initialSupply": "1000000",
+  "supplyPolicy": "CAPPED", "maxSupply": "5000000", "memo": "Loyalty points" }
+```
+
+Amounts are whole tokens as text; they are converted exactly to the smallest unit (an amount finer
+than the token's decimals is refused, not rounded). A "promise" is derived from the token's keys by
+`TokenPromises`, the same code for the Studio preview and for any token's passport. Verified on
+testnet: BEAN `0.0.10703797` created (fee 12.8 ℏ), minted +250 000, verified, audited on HCS.
+
 ## Agent task
 
 ```json

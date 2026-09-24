@@ -33,6 +33,7 @@ import {
   type PaymentsStatus,
 } from '../api/client'
 import PaymentResultPanel from '../modules/payments/PaymentResultPanel'
+import { useSearchParams } from 'react-router-dom'
 import IntentComposer from '../modules/payments/IntentComposer'
 import SentenceBox from '../modules/payments/SentenceBox'
 
@@ -69,6 +70,7 @@ export default function PaymentsPage() {
   // The payment whose result is open; set after Execute, or from a row.
   const [resultId, setResultId] = useState<string | null>(null)
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [searchParams] = useSearchParams()
 
   const loadContacts = useCallback(() => {
     listContacts()
@@ -328,6 +330,7 @@ export default function PaymentsPage() {
       />
 
       <IntentComposer
+        initialAsset={searchParams.get('asset') ?? ''}
         contacts={contacts}
         assetSymbols={['HBAR', ...(balance?.tokens.map((t) => t.symbol ?? t.tokenId ?? '') ?? [])]}
         onContactsChanged={loadContacts}
