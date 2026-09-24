@@ -21,8 +21,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Payments against the real Policies module: its engine, its envelope ledger (seeded rent 500,
- * essentials 300, emergency 200) and its approvals queue. No Hedera credentials in tests, so an
+ * Payments against the real Policies module: its engine, its envelope ledger (seeded rent 500 ℏ,
+ * essentials 300 ℏ, emergency 200 ℏ, all held in tinybars) and its approvals queue. No Hedera credentials in tests, so an
  * allowed payment ends SIMULATED.
  */
 @SpringBootTest
@@ -78,16 +78,17 @@ class PaymentPolicyIntegrationTest {
 
   @Test
   void a_refusal_is_explained_with_the_numbers_it_was_decided_on() {
-    vouchForRecipient(); // essentials 300 -> 299
+    vouchForRecipient(); // essentials 300 ℏ, less the 1 tinybar that vouched for the recipient
     long left = essentials();
+    long more_than_the_envelope_holds = left + 1;
 
-    PaymentResponse denied = pay(400, "ESSENTIALS");
+    PaymentResponse denied = pay(more_than_the_envelope_holds, "ESSENTIALS");
 
     assertThat(denied.policyRuleId()).isEqualTo("funds.insufficient");
     var why = denied.policyExplanation();
-    assertThat(why.requested()).isEqualTo("400");
+    assertThat(why.requested()).isEqualTo(String.valueOf(more_than_the_envelope_holds));
     assertThat(why.available()).isEqualTo(String.valueOf(left));
-    assertThat(why.shortfall()).isEqualTo(String.valueOf(400 - left));
+    assertThat(why.shortfall()).isEqualTo("1");
     assertThat(why.transactionCreated()).isFalse();
     assertThat(essentials()).as("a refusal spends nothing").isEqualTo(left);
   }

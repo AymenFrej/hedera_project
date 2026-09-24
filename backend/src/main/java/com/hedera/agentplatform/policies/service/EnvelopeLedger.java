@@ -54,9 +54,18 @@ public class EnvelopeLedger {
     return known;
   }
 
-  /** The runway the demo starts from, same amounts the V5 migration seeds. */
+  /**
+   * The runway the demo starts from, in tinybars — the unit Payments sends and the unit V15 seeds.
+   * Stated as HBAR × TINYBARS_PER_HBAR so the numbers stay readable: nobody should have to count
+   * zeroes to check that rent is 500 ℏ.
+   */
+  private static final long TINYBARS_PER_HBAR = 100_000_000L;
+
   private static final Map<Envelope, Long> SEEDED_RUNWAY =
-      Map.of(Envelope.RENT, 500L, Envelope.ESSENTIALS, 300L, Envelope.EMERGENCY, 200L);
+      Map.of(
+          Envelope.RENT, 500L * TINYBARS_PER_HBAR,
+          Envelope.ESSENTIALS, 300L * TINYBARS_PER_HBAR,
+          Envelope.EMERGENCY, 200L * TINYBARS_PER_HBAR);
 
   /**
    * Puts the demo back to its opening position: full envelopes, no questions pending, no

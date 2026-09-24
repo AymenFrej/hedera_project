@@ -1,0 +1,13 @@
+-- Envelopes had no unit. Payments sends Hedera's native tinybars (1 HBAR = 100,000,000), so a real
+-- 2 HBAR rent payment arrived as 200000000 against a RENT balance of 500 and came back
+-- DENY funds.insufficient. Every honest payment was refused; the demo only worked with amounts too
+-- small to be money.
+--
+-- This converts the unit rather than reseeding the amounts: whatever an envelope holds keeps its
+-- value in HBAR and is now expressed in tinybars. A database that had been spent down to 321 is
+-- still worth 321 HBAR afterwards, which a reseed would have silently undone. V5 is left untouched
+-- because a migration that has already run elsewhere is history, not a draft.
+--
+-- After this, RENT 500 ℏ = 50000000000, ESSENTIALS 300 ℏ = 30000000000, EMERGENCY 200 ℏ =
+-- 20000000000. The screens divide by 100,000,000 to show HBAR.
+UPDATE envelope_balances SET balance = balance * 100000000;

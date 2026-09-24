@@ -20,7 +20,9 @@ class MainMigrationUpgradeTest {
         flyway.validate();
         try (var connection = DriverManager.getConnection(url,"sa",""); var statement = connection.createStatement()) {
             try (var rows = statement.executeQuery("SELECT balance FROM envelope_balances WHERE envelope = 'RENT'")) {
-                assertThat(rows.next()).isTrue(); assertThat(rows.getLong(1)).isEqualTo(321L);
+                // V15 re-denominates envelopes into tinybars, so the 321 written here is worth
+                // 321 HBAR afterwards. The value is preserved; only the unit changed.
+                assertThat(rows.next()).isTrue(); assertThat(rows.getLong(1)).isEqualTo(321L * 100_000_000L);
             }
             try (var rows = statement.executeQuery("SELECT COUNT(*) FROM users")) {
                 assertThat(rows.next()).isTrue(); assertThat(rows.getInt(1)).isEqualTo(4);
