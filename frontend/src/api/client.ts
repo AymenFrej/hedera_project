@@ -505,3 +505,197 @@ export type VerificationResult = {
 export type PolicyRule = { ruleId: string; verdict: string; reason: string }
 export async function getPolicyRules(): Promise<PolicyRule[]> { return request('/policies') }
 export async function getAuditEvent(id: string): Promise<AuditEvent> { return request(`/audit/${encodeURIComponent(id)}`) }
+
+// --- Tokens -------------------------------------------------------------------------------------
+
+/** A token as designed in the Studio; everything is text so nothing is rounded on the way in. */
+export type TokenDraft = {
+  name: string
+  symbol: string
+  decimals: string
+  initialSupply: string
+  /** FIXED (never more), CAPPED (mintable up to maxSupply) or UNLIMITED */
+  supplyPolicy: string
+  maxSupply: string | null
+  memo: string | null
+}
+
+/** Read from the token's keys: GUARANTEE (it can never...) or POWER (someone can...). */
+export type TokenPromise = { kind: 'GUARANTEE' | 'POWER'; title: string; detail: string }
+
+export type TokenPreview = {
+  valid: boolean
+  problems: string[]
+  warnings: string[]
+  name: string | null
+  symbol: string | null
+  decimals: number
+  initialSupply: string | null
+  maxSupply: string | null
+  supplyType: string | null
+  mintable: boolean
+  memo: string | null
+  treasury: string | null
+  live: boolean
+  promises: TokenPromise[]
+  steps: string[]
+}
+
+export type TokenOperation = {
+  id: string
+  kind: 'CREATE' | 'MINT'
+  status: 'SUBMITTING' | 'CONFIRMED' | 'FAILED' | 'UNKNOWN' | 'SIMULATED'
+  tokenId: string | null
+  name: string | null
+  symbol: string | null
+  decimals: number | null
+  amount: string | null
+  maxSupply: string | null
+  mintable: boolean | null
+  memo: string | null
+  treasury: string | null
+  transactionId: string | null
+  networkStatus: string | null
+  totalSupplyAfter: string | null
+  failureReason: string | null
+  /** What the network really charged, read back from the Mirror Node */
+  feeHbar: string | null
+  consensusTimestamp: string | null
+  requestedById: string | null
+  createdAt: string | null
+  transactionUrl: string | null
+  tokenUrl: string | null
+}
+
+export type TokenCard = {
+  tokenId: string
+  symbol: string | null
+  name: string | null
+  decimals: number
+  balance: string
+  createdHere: boolean
+}
+
+export type TokenPortfolio = {
+  live: boolean
+  treasury: string | null
+  asOf: string | null
+  mirrorAvailable: boolean
+  tokens: TokenCard[]
+}
+
+export type TokenHolder = { account: string; balance: string; share: number; treasury: boolean }
+
+export type TokenPassport = {
+  tokenId: string
+  name: string | null
+  symbol: string | null
+  decimals: number
+  type: string | null
+  totalSupply: string
+  maxSupply: string | null
+  supplyType: string | null
+  treasury: string | null
+  memo: string | null
+  createdAt: string | null
+  pauseStatus: string | null
+  promises: TokenPromise[]
+  holders: TokenHolder[]
+  holdersComplete: boolean
+  treasuryShare: number
+  canMint: boolean
+  mintReason: string | null
+  operations: TokenOperation[]
+  tokenUrl: string
+}
+
+export type MintPreview = {
+  valid: boolean
+  problems: string[]
+  tokenId: string
+  symbol: string | null
+  decimals: number
+  amount: string | null
+  supplyBefore: string | null
+  supplyAfter: string | null
+  maxSupply: string | null
+  live: boolean
+}
+
+export type Receivability = {
+  accountId: string
+  tokenId: string
+  state: 'CAN_RECEIVE' | 'AUTO_ASSOCIATES' | 'NEEDS_ASSOCIATION' | 'NO_ACCOUNT' | 'DELETED'
+  canReceive: boolean
+  detail: string
+}
+
+export type TokenVerification = {
+  state: 'VERIFIED' | 'MISMATCH' | 'PENDING' | 'NOT_SUBMITTED' | 'UNAVAILABLE'
+  summary: string
+  checks: { label: string; passed: boolean; detail: string }[]
+  feeHbar: string | null
+  consensusTimestamp: string | null
+  transactionUrl: string | null
+}
+
+export type TokenInterpretation = {
+  available: boolean
+  detail: string
+  source: string | null
+  draft: Partial<TokenDraft> | null
+  clarification: string | null
+  preview: TokenPreview | null
+}
+
+export async function getTokenPortfolio(): Promise<TokenPortfolio> {
+  return request('/tokens')
+}
+
+export async function previewToken(draft: TokenDraft): Promise<TokenPreview> {
+  return request('/tokens/preview', { method: 'POST', body: JSON.stringify(draft) })
+}
+
+export async function createToken(draft: TokenDraft, idempotencyKey: string): Promise<TokenOperation> {
+  return request('/tokens', {
+    method: 'POST',
+    body: JSON.stringify(draft),
+    headers: { 'Idempotency-Key': idempotencyKey },
+  })
+}
+
+/** The Token Agent reads a sentence into the Studio's fields; nothing is created. */
+export async function interpretTokenSentence(text: string): Promise<TokenInterpretation> {
+  return request('/tokens/intent/interpret', { method: 'POST', body: JSON.stringify({ text }) })
+}
+
+export async function listTokenOperations(): Promise<TokenOperation[]> {
+  return request('/tokens/operations')
+}
+
+export async function verifyTokenOperation(id: string): Promise<TokenVerification> {
+  return request(`/tokens/operations/${encodeURIComponent(id)}/verification`)
+}
+
+export async function getTokenPassport(tokenId: string): Promise<TokenPassport> {
+  return request(`/tokens/${encodeURIComponent(tokenId)}/passport`)
+}
+
+export async function previewMint(tokenId: string, amount: string): Promise<MintPreview> {
+  return request(`/tokens/${encodeURIComponent(tokenId)}/mint/preview`, {
+    method: 'POST',
+    body: JSON.stringify({ amount }),
+  })
+}
+
+export async function mintToken(tokenId: string, amount: string, idempotencyKey: string): Promise<TokenOperation> {
+  return request(`/tokens/${encodeURIComponent(tokenId)}/mint`, {
+    method: 'POST',
+    body: JSON.stringify({ amount }),
+    headers: { 'Idempotency-Key': idempotencyKey },
+  })
+}
+
+export async function checkReceivable(tokenId: string, accountId: string): Promise<Receivability> {
+  return request(`/tokens/${encodeURIComponent(tokenId)}/receivable/${encodeURIComponent(accountId)}`)
+}

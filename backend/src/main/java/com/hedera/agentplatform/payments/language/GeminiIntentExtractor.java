@@ -43,6 +43,12 @@ public class GeminiIntentExtractor implements IntentExtractor {
   }
 
   @Override
+  public <T> T extractAs(String instructions, String text, Class<T> type) {
+    return ModelJson.parse(
+        answer(instructions, List.of(Map.of("text", text)), ModelJson.schemaOf(type, true)), type);
+  }
+
+  @Override
   public Set<String> documentTypes() {
     Set<String> types = new HashSet<>(DocumentPrompt.TEXT_TYPES);
     types.add(DocumentPrompt.PDF);
@@ -66,6 +72,12 @@ public class GeminiIntentExtractor implements IntentExtractor {
   }
 
   private ExtractedIntent generate(String instructions, List<Map<String, Object>> parts) {
+    return ModelJson.parseIntent(answer(instructions, parts, ModelJson.intentSchema(true)));
+  }
+
+  /** The model's JSON text, constrained to {@code schema}. */
+  private String answer(
+      String instructions, List<Map<String, Object>> parts, Map<String, Object> schema) {
     Map<String, Object> body =
         Map.of(
             "systemInstruction", Map.of("parts", List.of(Map.of("text", instructions))),
@@ -74,7 +86,7 @@ public class GeminiIntentExtractor implements IntentExtractor {
                 Map.of(
                     "temperature", 0,
                     "responseMimeType", "application/json",
-                    "responseSchema", ModelJson.intentSchema(true)));
+                    "responseSchema", schema));
     ModelJson.Reply reply;
     try {
       reply = send(body);
@@ -116,7 +128,7 @@ public class GeminiIntentExtractor implements IntentExtractor {
     if (text.isBlank()) {
       throw new ExtractionException("Gemini returned no answer");
     }
-    return ModelJson.parseIntent(text);
+    return text;
   }
 
   private ModelJson.Reply send(Map<String, Object> body) throws IOException, InterruptedException {

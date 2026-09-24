@@ -33,6 +33,11 @@ public class OllamaIntentExtractor implements IntentExtractor {
     return chat(ClaudeIntentExtractor.INSTRUCTIONS, sentence);
   }
 
+  @Override
+  public <T> T extractAs(String instructions, String text, Class<T> type) {
+    return ModelJson.parse(answer(instructions, text, ModelJson.schemaOf(type, false)), type);
+  }
+
   /** Small local models read text only: PDFs and images need Gemini or Claude. */
   @Override
   public Set<String> documentTypes() {
@@ -48,11 +53,16 @@ public class OllamaIntentExtractor implements IntentExtractor {
   }
 
   private ExtractedIntent chat(String instructions, String userContent) {
+    return ModelJson.parseIntent(answer(instructions, userContent, ModelJson.intentSchema(false)));
+  }
+
+  /** The model's JSON text, constrained to {@code schema}. */
+  private String answer(String instructions, String userContent, Map<String, Object> schema) {
     Map<String, Object> body =
         Map.of(
             "model", model,
             "stream", false,
-            "format", ModelJson.intentSchema(false),
+            "format", schema,
             "options", Map.of("temperature", 0),
             "messages",
                 List.of(
@@ -86,7 +96,7 @@ public class OllamaIntentExtractor implements IntentExtractor {
     if (content.isBlank()) {
       throw new ExtractionException("The local model returned no answer");
     }
-    return ModelJson.parseIntent(content);
+    return content;
   }
 
   @Override

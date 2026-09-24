@@ -65,6 +65,18 @@ public class ClaudeIntentExtractor implements IntentExtractor {
   }
 
   @Override
+  public <T> T extractAs(String instructions, String text, Class<T> type) {
+    return ask(
+        MessageCreateParams.builder()
+            .model(model)
+            .maxTokens(4000L)
+            .system(instructions)
+            .outputConfig(type)
+            .addUserMessage(text)
+            .build());
+  }
+
+  @Override
   public Set<String> documentTypes() {
     Set<String> types = new HashSet<>(DocumentPrompt.TEXT_TYPES);
     types.add(DocumentPrompt.PDF);
@@ -100,13 +112,13 @@ public class ClaudeIntentExtractor implements IntentExtractor {
     return ContentBlockParam.ofText(TextBlockParam.builder().text(text).build());
   }
 
-  private ExtractedIntent ask(StructuredMessageCreateParams<ExtractedIntent> params) {
+  private <T> T ask(StructuredMessageCreateParams<T> params) {
     try {
-      StructuredMessage<ExtractedIntent> response = client.messages().create(params);
+      StructuredMessage<T> response = client.messages().create(params);
       if (response.stopReason().filter(r -> r.equals(StopReason.REFUSAL)).isPresent()) {
         throw new ExtractionException("The language model declined this request");
       }
-      Optional<ExtractedIntent> intent =
+      Optional<T> intent =
           response.content().stream().flatMap(block -> block.text().stream()).map(t -> t.text()).findFirst();
       return intent.orElseThrow(
           () -> new ExtractionException("The language model returned no structured answer"));

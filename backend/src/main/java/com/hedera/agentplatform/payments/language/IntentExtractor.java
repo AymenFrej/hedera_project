@@ -16,6 +16,15 @@ public interface IntentExtractor {
   /** Which model or method produced the extraction, shown to the user. */
   String source();
 
+  /**
+   * Any structured answer: the fields of {@code type} (a record of strings and booleans) that
+   * {@code text} states, read under {@code instructions}. Other modules (Tokens) use this to get
+   * their own request shape from the same configured model.
+   */
+  default <T> T extractAs(String instructions, String text, Class<T> type) {
+    throw new ExtractionException(source() + " cannot read this kind of request");
+  }
+
   /** The document types (MIME) this model can read; empty when it reads no documents. */
   default Set<String> documentTypes() {
     return Set.of();
