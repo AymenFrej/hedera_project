@@ -6,7 +6,7 @@ export default function AccountsPage() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
-  async function load() { setBusy(true); setError(''); try { setAccount(await getCurrentAccount()) } catch(e) { setError((e as Error).message) } finally { setBusy(false) } }
+  async function load() { setBusy(true); setCopied(false); setError(''); try { setAccount(await getCurrentAccount()) } catch(e) { setError((e as Error).message) } finally { setBusy(false) } }
   useEffect(() => { void load() }, [])
   return <section className="settings-card data-panel"><h1>My wallet</h1>
     {error && <p role="alert">{error}</p>}
