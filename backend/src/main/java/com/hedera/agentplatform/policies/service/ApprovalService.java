@@ -60,7 +60,8 @@ public class ApprovalService {
     PolicyDecision decision = recorded.decision();
 
     if (decision.verdict() != Verdict.HOLD) {
-      if (decision.verdict() == Verdict.ALLOW) {
+      // Only an HBAR spend moves an envelope: a token's units are not tinybars.
+      if (decision.verdict() == Verdict.ALLOW && request.spendsEnvelope()) {
         ledger.debit(request.envelope(), request.amount());
       }
       return new Submission(decision, null, recorded.auditEvent().id, recorded.anchored());
@@ -76,6 +77,7 @@ public class ApprovalService {
     entity.envelope = request.envelope() == null ? null : request.envelope().name();
     entity.amount = request.amount();
     entity.counterparty = request.counterparty();
+    entity.asset = request.asset();
 
     return new Submission(
         decision, toResponse(repository.save(entity)), recorded.auditEvent().id, recorded.anchored());
@@ -107,7 +109,12 @@ public class ApprovalService {
           "Approval " + approvalId + " was already " + entity.status.toLowerCase(Locale.ROOT));
     }
 
-    if ("APPROVED".equals(status)) {
+    // Only an HBAR approval touches an envelope. A token amount is in the token's own units, so
+    // checking it against tinybars would refuse a payment the envelope has nothing to say about.
+    boolean spendsEnvelope =
+        entity.asset == null || PolicyRequest.HBAR.equalsIgnoreCase(entity.asset);
+
+    if ("APPROVED".equals(status) && spendsEnvelope) {
       PolicyEngine.Envelope envelope = PolicyEngine.Envelope.valueOf(entity.envelope);
       long available = ledger.state().balances().getOrDefault(envelope, 0L);
       if (entity.amount > available) {
@@ -128,7 +135,7 @@ public class ApprovalService {
     entity.decidedAt = Instant.now();
     entity.decidedBy = actor == null ? null : actor.id();
 
-    if ("APPROVED".equals(status)) {
+    if ("APPROVED".equals(status) && spendsEnvelope) {
       ledger.debit(PolicyEngine.Envelope.valueOf(entity.envelope), entity.amount);
     }
 
@@ -138,6 +145,7 @@ public class ApprovalService {
     metadata.put("envelope", entity.envelope);
     metadata.put("amount", entity.amount);
     metadata.put("counterparty", entity.counterparty);
+    metadata.put("asset", entity.asset);
     metadata.put("decisionAuditEventId", entity.taskId);
 
     auditService.record("HumanApprover", "POLICY_APPROVAL", status, metadata);

@@ -91,18 +91,29 @@ public class EnginePaymentPolicy implements PaymentPolicy {
         .orElseThrow(() -> new IllegalArgumentException("Unknown approval: " + approvalId));
   }
 
+  /**
+   * The asset travels with the request. Envelopes are a budget in HBAR, so a token payment is
+   * judged on its counterparty and charged to no envelope: 2 BEAN is not 200 tinybars.
+   */
   private static PolicyRequest request(PaymentEntity payment) {
-    return new PolicyRequest(envelope(payment.envelope), payment.amountUnits, payment.destination);
+    return PolicyRequest.ofToken(
+        envelope(payment.envelope),
+        payment.amountUnits,
+        payment.destination,
+        payment.currency == null ? PolicyRequest.HBAR : payment.currency);
   }
 
   /** The verdict, plus the envelope balance it was decided on. */
   private static PaymentPolicyDecision map(PolicyDecision d, PolicyState state) {
     Envelope envelope = d.request().envelope();
+    // No envelope balance is quoted for a token: an HBAR figure next to a BEAN amount is a number
+    // that looks like it explains the verdict and does not.
+    boolean quotable = envelope != null && d.request().spendsEnvelope();
     return new PaymentPolicyDecision(
         Verdict.valueOf(d.verdict().name()),
         d.ruleId(),
         d.reason(),
-        envelope == null ? null : state.balances().get(envelope));
+        quotable ? state.balances().get(envelope) : null);
   }
 
   private static Envelope envelope(String name) {

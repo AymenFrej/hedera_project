@@ -48,16 +48,22 @@ class PaymentPolicyConcurrencyTest {
     when(decimals.of(anyString())).thenReturn(0);
   }
 
-  /** Envelopes are denominated in tinybars, so a test amount that means money is a multiple of this. */
-  private static final long HBAR = 100_000_000L;
-
+  /**
+   * Amounts here are in HBAR: the service converts them to the tinybars the envelopes are held in.
+   * The envelope opens at 300 ℏ, so these figures mean what they read as.
+   */
+  /**
+   * Envelopes are a budget in HBAR, so a test about spending one pays in HBAR: a null token id is
+   * the native asset. Paying a token here would assert envelope arithmetic on an asset the
+   * envelopes deliberately do not count.
+   */
   private CreatePaymentRequest essentials(long units) {
-    return new CreatePaymentRequest(RECIPIENT, String.valueOf(units), TOKEN, "ESSENTIALS", null);
+    return new CreatePaymentRequest(RECIPIENT, String.valueOf(units), null, "ESSENTIALS", null);
   }
 
   /**
-   * Opening position (essentials 300 ℏ), then a first 1-tinybar payment to the recipient, held and
-   * approved: that vouches for the recipient and leaves essentials just under 300 ℏ.
+   * Opening position (essentials 300 ℏ), then a first 1 ℏ payment to the recipient, held and
+   * approved: that vouches for the recipient and leaves essentials at 299 ℏ.
    */
   @BeforeEach
   void knownRecipient() {
@@ -74,9 +80,8 @@ class PaymentPolicyConcurrencyTest {
 
   @Test
   void concurrent_payments_cannot_together_spend_more_than_the_envelope() throws Exception {
-    // Essentials is just under 300 ℏ after the vouching payment. 140 ℏ is within half of it and is
-    // allowed; after it only ~160 ℏ is left, and 140 ℏ is more than half of that. So exactly one
-    // may go through.
+    // Essentials = 299 ℏ after the vouching payment. 140 ℏ is within half of it and is allowed;
+    // after it only 159 ℏ is left, and 140 ℏ is more than half of that. So exactly one goes through.
     int threads = 8;
     ExecutorService pool = Executors.newFixedThreadPool(threads);
     CountDownLatch start = new CountDownLatch(1);
@@ -85,7 +90,7 @@ class PaymentPolicyConcurrencyTest {
       Callable<PaymentResponse> task =
           () -> {
             start.await();
-            return payments.create(essentials(140 * HBAR));
+            return payments.create(essentials(140));
           };
       results.add(pool.submit(task));
     }
@@ -104,14 +109,14 @@ class PaymentPolicyConcurrencyTest {
 
   @Test
   void approving_a_held_payment_after_its_envelope_was_used_up_is_refused() {
-    // 200 ℏ is more than half of the ~300 ℏ left: held for a reviewer.
-    PaymentResponse held = payments.create(essentials(200 * HBAR));
+    // 200 ℏ is more than half of 299 ℏ: held for a reviewer.
+    PaymentResponse held = payments.create(essentials(200));
     assertThat(held.status()).isEqualTo("AWAITING_APPROVAL");
 
-    // Meanwhile 149 ℏ is spent from the same envelope (within half of what is left: allowed).
-    assertThat(payments.create(essentials(149 * HBAR)).policyVerdict()).isEqualTo("ALLOW");
+    // Meanwhile 149 ℏ is spent from the same envelope (within half of 299: allowed).
+    assertThat(payments.create(essentials(149)).policyVerdict()).isEqualTo("ALLOW");
 
-    // Only ~151 ℏ is left: the Policies module refuses the approval as no longer affordable.
+    // Only 150 ℏ is left: the Policies module refuses the approval as no longer affordable.
     PaymentResponse approved = payments.approve(held.id());
 
     assertThat(approved.status()).isEqualTo("REJECTED");
