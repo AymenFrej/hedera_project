@@ -3,6 +3,8 @@
 !.env.example
 backend/target/
 .tools/
+.pr8-live/
+.review-main/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/

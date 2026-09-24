@@ -24,7 +24,7 @@ class PolicyDecideEndpointTest {
   @Autowired private WebApplicationContext context;
 
   private MockMvc mvc() {
-    return MockMvcBuilders.webAppContextSetup(context).build();
+    return com.hedera.agentplatform.accounts.AuthenticatedMvc.admin(context);
   }
 
   @Test

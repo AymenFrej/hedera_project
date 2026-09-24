@@ -27,7 +27,7 @@ class DecisionProofLinkTest {
   @Autowired private WebApplicationContext context;
 
   private MockMvc mvc() {
-    return MockMvcBuilders.webAppContextSetup(context).build();
+    return com.hedera.agentplatform.accounts.AuthenticatedMvc.admin(context);
   }
 
   private static final String RENT_SPEND =

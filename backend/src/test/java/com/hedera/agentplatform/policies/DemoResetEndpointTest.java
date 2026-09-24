@@ -19,7 +19,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class DemoResetEndpointTest {
 
-  @Autowired private MockMvc mockMvc;
+  @Autowired private org.springframework.web.context.WebApplicationContext context;
+  private MockMvc mockMvc;
+
+  @org.junit.jupiter.api.BeforeEach
+  void authenticate() { mockMvc = com.hedera.agentplatform.accounts.AuthenticatedMvc.admin(context); }
 
   @Test
   void resetting_hands_back_the_opening_balances() throws Exception {

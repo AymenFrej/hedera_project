@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.hedera.agentplatform.accounts.auth.AuthSessionService;
+import com.hedera.agentplatform.accounts.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,11 +22,22 @@ import org.springframework.web.context.WebApplicationContext;
 class PaymentControllerTest {
 
   @Autowired private WebApplicationContext context;
+  @Autowired private UserRepository users;
+  @Autowired private AuthSessionService sessions;
+
+  /** Signed in as the seeded USER (V7 demo login), through the real session and interceptor. */
   private MockMvc mockMvc;
+
+  private MockMvc as(String userId) {
+    String token = sessions.create(users.findById(userId).orElseThrow());
+    return MockMvcBuilders.webAppContextSetup(context)
+        .defaultRequest(get("/").header("Authorization", "Bearer " + token))
+        .build();
+  }
 
   @BeforeEach
   void setUp() {
-    mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+    mockMvc = as("user_demo");
   }
 
   @Test
@@ -84,7 +97,46 @@ class PaymentControllerTest {
             .getContentAsString();
     String id = json.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
 
-    mockMvc.perform(post("/api/v1/payments/" + id + "/approve")).andExpect(status().isConflict());
+    as("admin_demo").perform(post("/api/v1/payments/" + id + "/approve")).andExpect(status().isConflict());
+  }
+
+  @Test
+  void without_signing_in_payments_are_refused() throws Exception {
+    MockMvcBuilders.webAppContextSetup(context).build()
+        .perform(get("/api/v1/payments"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void a_user_cannot_answer_a_held_payment_not_even_their_own() throws Exception {
+    mockMvc.perform(post("/api/v1/payments/any/approve")).andExpect(status().isForbidden());
+    mockMvc.perform(post("/api/v1/payments/any/reject")).andExpect(status().isForbidden());
+  }
+
+  @Test
+  void a_user_sees_only_their_own_payments_an_admin_sees_all() throws Exception {
+    String json =
+        mockMvc
+            .perform(post("/api/v1/payments").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"destination\":\"0.0.4242\",\"amount\":\"1\"}"))
+            .andReturn().getResponse().getContentAsString();
+    String id = json.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+
+    mockMvc.perform(get("/api/v1/payments/" + id)).andExpect(status().isOk());
+    as("auditor_demo").perform(get("/api/v1/payments/" + id)).andExpect(status().isForbidden());
+    as("admin_demo").perform(get("/api/v1/payments/" + id)).andExpect(status().isOk());
+    as("admin_demo")
+        .perform(get("/api/v1/payments"))
+        .andExpect(jsonPath("$[?(@.id == '" + id + "')]").exists());
+  }
+
+  @Test
+  void a_payment_is_attributed_to_the_signed_in_user() throws Exception {
+    mockMvc
+        .perform(post("/api/v1/payments").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"destination\":\"0.0.4242\",\"amount\":\"1\"}"))
+        .andExpect(jsonPath("$.requestedByType").value("USER"))
+        .andExpect(jsonPath("$.requestedById").value("user_demo"));
   }
 
   @Test

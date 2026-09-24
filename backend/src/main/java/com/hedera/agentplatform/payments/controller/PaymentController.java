@@ -16,6 +16,7 @@ import com.hedera.agentplatform.payments.service.IntentService;
 import com.hedera.agentplatform.payments.service.PaymentPreviewService;
 import com.hedera.agentplatform.payments.service.PaymentReceiptService;
 import com.hedera.agentplatform.payments.service.PaymentService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/payments")
 public class PaymentController {
   private final PaymentService service;
+  private final PaymentAccess access;
   private final PaymentPreviewService previews;
   private final PaymentReceiptService receipts;
   private final IntentService intents;
@@ -37,6 +39,7 @@ public class PaymentController {
 
   public PaymentController(
       PaymentService service,
+      PaymentAccess access,
       PaymentPreviewService previews,
       PaymentReceiptService receipts,
       IntentService intents,
@@ -44,6 +47,7 @@ public class PaymentController {
       @Value("${payments.demo-token-id:}") String demoTokenId,
       @Value("${payments.demo-recipient-id:}") String demoRecipientId) {
     this.service = service;
+    this.access = access;
     this.previews = previews;
     this.receipts = receipts;
     this.intents = intents;
@@ -53,13 +57,14 @@ public class PaymentController {
   }
 
   @GetMapping
-  public List<PaymentResponse> findAll() {
-    return service.findAll();
+  public List<PaymentResponse> findAll(HttpServletRequest http) {
+    boolean all = access.seesEverything(http);
+    return service.findAll().stream().filter(p -> all || access.canSee(http, p)).toList();
   }
 
   @GetMapping("/{id}")
-  public PaymentResponse findById(@PathVariable String id) {
-    return service.findById(id);
+  public PaymentResponse findById(@PathVariable String id, HttpServletRequest http) {
+    return visible(id, http);
   }
 
   /** Checks the policy, then sends the transfer or holds it for approval. */
@@ -107,12 +112,14 @@ public class PaymentController {
   }
 
   @PostMapping("/{id}/approve")
-  public PaymentResponse approve(@PathVariable String id) {
+  public PaymentResponse approve(@PathVariable String id, HttpServletRequest http) {
+    access.requireReviewer(http);
     return service.approve(id);
   }
 
   @PostMapping("/{id}/reject")
-  public PaymentResponse reject(@PathVariable String id) {
+  public PaymentResponse reject(@PathVariable String id, HttpServletRequest http) {
+    access.requireReviewer(http);
     return service.reject(id);
   }
 
@@ -121,19 +128,23 @@ public class PaymentController {
    * timeline built from the payment's audit events, and each event verified on HCS.
    */
   @GetMapping("/{id}/result")
-  public PaymentReceipt result(@PathVariable String id) {
+  public PaymentReceipt result(@PathVariable String id, HttpServletRequest http) {
+    visible(id, http);
     return receipts.receipt(id);
   }
 
   /** The audit events this payment wrote. */
   @GetMapping("/{id}/audit")
-  public List<AuditEventResponse> audit(@PathVariable String id) {
+  public List<AuditEventResponse> audit(@PathVariable String id, HttpServletRequest http) {
+    visible(id, http);
     return receipts.auditEvents(id);
   }
 
   /** Reads one of this payment's audit events back from HCS. */
   @GetMapping("/{id}/audit/{eventId}/verification")
-  public VerificationResult verifyAudit(@PathVariable String id, @PathVariable String eventId) {
+  public VerificationResult verifyAudit(
+      @PathVariable String id, @PathVariable String eventId, HttpServletRequest http) {
+    visible(id, http);
     return receipts.verifyAuditEvent(id, eventId);
   }
 
@@ -145,8 +156,16 @@ public class PaymentController {
 
   /** Reads the transfer back from the Mirror Node and compares it with the payment. */
   @GetMapping("/{id}/verification")
-  public PaymentVerification verify(@PathVariable String id) {
+  public PaymentVerification verify(@PathVariable String id, HttpServletRequest http) {
+    visible(id, http);
     return service.verify(id);
+  }
+
+  /** The payment, if the caller may see it; otherwise 404, as if it did not exist. */
+  private PaymentResponse visible(String id, HttpServletRequest http) {
+    PaymentResponse payment = service.findById(id);
+    access.requireVisible(http, payment);
+    return payment;
   }
 
   /**

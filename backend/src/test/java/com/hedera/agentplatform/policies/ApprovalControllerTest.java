@@ -39,18 +39,18 @@ class ApprovalControllerTest {
 
   @Test
   void posting_approve_settles_the_request() throws Exception {
-    MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+    MockMvc mockMvc = com.hedera.agentplatform.accounts.AuthenticatedMvc.admin(context);
 
     mockMvc
         .perform(post("/api/v1/policies/approvals/{id}/approve", pendingApprovalId()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("APPROVED"))
-        .andExpect(jsonPath("$.decidedBy").value("platform"));
+        .andExpect(jsonPath("$.decidedBy").value("admin_demo"));
   }
 
   @Test
   void answering_the_same_request_twice_is_a_409_not_a_500() throws Exception {
-    MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+    MockMvc mockMvc = com.hedera.agentplatform.accounts.AuthenticatedMvc.admin(context);
     String id = pendingApprovalId();
 
     mockMvc.perform(post("/api/v1/policies/approvals/{id}/approve", id)).andExpect(status().isOk());
@@ -62,7 +62,7 @@ class ApprovalControllerTest {
 
   @Test
   void a_refused_answer_says_why_in_the_body() throws Exception {
-    MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+    MockMvc mockMvc = com.hedera.agentplatform.accounts.AuthenticatedMvc.admin(context);
     String id = pendingApprovalId();
 
     mockMvc.perform(post("/api/v1/policies/approvals/{id}/approve", id)).andExpect(status().isOk());
@@ -75,7 +75,7 @@ class ApprovalControllerTest {
 
   @Test
   void answering_an_unknown_approval_is_a_404_not_a_500() throws Exception {
-    MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+    MockMvc mockMvc = com.hedera.agentplatform.accounts.AuthenticatedMvc.admin(context);
 
     mockMvc
         .perform(post("/api/v1/policies/approvals/{id}/reject", "approval_does_not_exist"))
