@@ -109,6 +109,17 @@ public class PaymentController {
     return sentences.interpret(body.get("text"));
   }
 
+  /**
+   * A language model reads an attached document (invoice, bill) into the same request as a
+   * sentence: {@code fileName}, {@code mimeType}, {@code content} (base64, at most 5 MB) and an
+   * optional {@code note}. Nothing is recorded or sent.
+   */
+  @PostMapping("/intent/document")
+  public SentenceInterpretation interpretDocument(@RequestBody Map<String, String> body) {
+    return sentences.interpretDocument(
+        body.get("fileName"), body.get("mimeType"), body.get("content"), body.get("note"));
+  }
+
   @GetMapping("/contacts")
   public List<ContactEntity> contacts() {
     return contacts.list();

@@ -8,6 +8,7 @@ import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Reads payment sentences with a model running locally in Ollama: free, no account, and nothing
@@ -29,6 +30,24 @@ public class OllamaIntentExtractor implements IntentExtractor {
 
   @Override
   public ExtractedIntent extract(String sentence) {
+    return chat(ClaudeIntentExtractor.INSTRUCTIONS, sentence);
+  }
+
+  /** Small local models read text only: PDFs and images need Gemini or Claude. */
+  @Override
+  public Set<String> documentTypes() {
+    return DocumentPrompt.TEXT_TYPES;
+  }
+
+  @Override
+  public ExtractedIntent extractFromDocument(Document document, String note) {
+    if (!document.isText()) {
+      throw new ExtractionException(source() + " reads text documents only");
+    }
+    return chat(DocumentPrompt.INSTRUCTIONS, DocumentPrompt.textDocument(document, note));
+  }
+
+  private ExtractedIntent chat(String instructions, String userContent) {
     Map<String, Object> body =
         Map.of(
             "model", model,
@@ -37,8 +56,8 @@ public class OllamaIntentExtractor implements IntentExtractor {
             "options", Map.of("temperature", 0),
             "messages",
                 List.of(
-                    Map.of("role", "system", "content", ClaudeIntentExtractor.INSTRUCTIONS),
-                    Map.of("role", "user", "content", sentence)));
+                    Map.of("role", "system", "content", instructions),
+                    Map.of("role", "user", "content", userContent)));
     ModelJson.Reply reply;
     try {
       reply = ModelJson.post(URI.create(baseUrl + "/api/chat"), Map.of(), body, TIMEOUT);

@@ -4,8 +4,8 @@ import com.hedera.agentplatform.payments.dto.IntentUnderstanding;
 import com.hedera.agentplatform.payments.dto.PaymentIntent;
 
 /**
- * What became of a sentence: what the language model read in it, and then what the application
- * resolved from that, with sources.
+ * What became of a sentence or an attached document: what the language model read in it, and then
+ * what the application resolved from that, with sources.
  *
  * @param available false when no language model is configured; {@code detail} says so
  * @param source the model that read the sentence
@@ -13,6 +13,8 @@ import com.hedera.agentplatform.payments.dto.PaymentIntent;
  * @param clarification what the model found missing or unclear; null when nothing
  * @param understanding the application's resolution of {@code intent} (contacts, Mirror Node);
  *     null when there was nothing to resolve
+ * @param document the attached file's name; null for a sentence
+ * @param warning something the person must check before confirming; null when nothing
  */
 public record SentenceInterpretation(
     boolean available,
@@ -20,4 +22,6 @@ public record SentenceInterpretation(
     String source,
     PaymentIntent intent,
     String clarification,
-    IntentUnderstanding understanding) {}
+    IntentUnderstanding understanding,
+    String document,
+    String warning) {}

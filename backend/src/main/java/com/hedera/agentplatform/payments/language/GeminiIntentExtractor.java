@@ -5,8 +5,11 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
+import java.util.Base64;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Reads payment sentences with Google Gemini (the free tier needs a Google account, no card). The
@@ -36,11 +39,37 @@ public class GeminiIntentExtractor implements IntentExtractor {
 
   @Override
   public ExtractedIntent extract(String sentence) {
+    return generate(ClaudeIntentExtractor.INSTRUCTIONS, List.of(Map.of("text", sentence)));
+  }
+
+  @Override
+  public Set<String> documentTypes() {
+    Set<String> types = new HashSet<>(DocumentPrompt.TEXT_TYPES);
+    types.add(DocumentPrompt.PDF);
+    types.addAll(DocumentPrompt.IMAGE_TYPES);
+    return types;
+  }
+
+  @Override
+  public ExtractedIntent extractFromDocument(Document document, String note) {
+    List<Map<String, Object>> parts =
+        document.isText()
+            ? List.of(Map.of("text", DocumentPrompt.textDocument(document, note)))
+            : List.of(
+                Map.of(
+                    "inlineData",
+                    Map.of(
+                        "mimeType", document.mimeType(),
+                        "data", Base64.getEncoder().encodeToString(document.data()))),
+                Map.of("text", DocumentPrompt.fileNote(document, note)));
+    return generate(DocumentPrompt.INSTRUCTIONS, parts);
+  }
+
+  private ExtractedIntent generate(String instructions, List<Map<String, Object>> parts) {
     Map<String, Object> body =
         Map.of(
-            "systemInstruction",
-                Map.of("parts", List.of(Map.of("text", ClaudeIntentExtractor.INSTRUCTIONS))),
-            "contents", List.of(Map.of("role", "user", "parts", List.of(Map.of("text", sentence)))),
+            "systemInstruction", Map.of("parts", List.of(Map.of("text", instructions))),
+            "contents", List.of(Map.of("role", "user", "parts", parts)),
             "generationConfig",
                 Map.of(
                     "temperature", 0,
