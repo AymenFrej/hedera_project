@@ -70,6 +70,14 @@ public final class PolicyEngine {
           request,
           null);
     }
+    if (request.counterparty() == null || request.counterparty().isBlank()) {
+      return new PolicyDecision(
+          Verdict.DENY,
+          "counterparty.missing",
+          "no counterparty named in the request",
+          request,
+          null);
+    }
     Long balance = state.balances().get(envelope);
     if (balance == null) {
       return new PolicyDecision(
