@@ -4,6 +4,7 @@ import com.hedera.agentplatform.policies.PolicyRequest;
 import com.hedera.agentplatform.policies.PolicyState;
 import com.hedera.agentplatform.policies.dto.*;
 import com.hedera.agentplatform.policies.service.ApprovalService;
+import com.hedera.agentplatform.policies.service.EnvelopeLedger;
 import com.hedera.agentplatform.policies.service.PolicyService;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,19 +17,14 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/v1/policies")
 public class PolicyController {
 
-  /**
-   * The demo relocation runway: 1000 units split rent/essentials/emergency, with one counterparty
-   * already trusted. Fixed on purpose — this endpoint shows the rules, not a budgeting product.
-   */
-  private static final PolicyState DEMO_STATE =
-      new PolicyState(PolicyEngine.allocate(1000), List.of("landlord-tunis"));
-
   private final PolicyService service;
   private final ApprovalService approvals;
+  private final EnvelopeLedger ledger;
 
-  public PolicyController(PolicyService service, ApprovalService approvals) {
+  public PolicyController(PolicyService service, ApprovalService approvals, EnvelopeLedger ledger) {
     this.service = service;
     this.approvals = approvals;
+    this.ledger = ledger;
   }
 
   @GetMapping
@@ -38,11 +34,12 @@ public class PolicyController {
 
   @GetMapping("/state")
   public StateResponse state() {
+    PolicyState current = ledger.state();
     Map<String, Long> envelopes = new LinkedHashMap<>();
     for (PolicyEngine.Envelope envelope : PolicyEngine.Envelope.values()) {
-      envelopes.put(envelope.name(), DEMO_STATE.balances().get(envelope));
+      envelopes.put(envelope.name(), current.balances().get(envelope));
     }
-    return new StateResponse(envelopes, DEMO_STATE.knownCounterparties());
+    return new StateResponse(envelopes, current.knownCounterparties());
   }
 
   @PostMapping("/decide")
@@ -50,7 +47,7 @@ public class PolicyController {
     ApprovalService.Submission submission =
         approvals.submit(
             new PolicyRequest(envelopeOf(body.envelope()), body.amount(), body.counterparty()),
-            DEMO_STATE);
+            ledger.state());
     return new DecideResponse(
         submission.decision().verdict().name(),
         submission.decision().ruleId(),
