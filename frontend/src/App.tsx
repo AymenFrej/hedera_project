@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import AppShell from './layout/AppShell'
-import FeaturePage from './pages/FeaturePage'
 import TokensPage from './pages/TokensPage'
 import PoliciesPage from './pages/PoliciesPage'
 import ApprovalsPage from './pages/ApprovalsPage'
@@ -43,8 +42,6 @@ export default function App() {
       <Route path="/admin/users" element={<AdminUsersPage/>}/>
       <Route path="/accounts" element={<AccountsPage/>}/>
       <Route path="/assistant" element={<AssistantPage/>}/>
-      <Route path="/payments" element={<FeaturePage kind="payments"/>}/>
-      <Route path="/tokens" element={<FeaturePage kind="tokens"/>}/>
       <Route path="/payments" element={<PaymentsPage/>}/>
       <Route path="/tokens" element={<TokensPage/>}/>
       <Route path="/audit" element={<AuditPage/>}/>
