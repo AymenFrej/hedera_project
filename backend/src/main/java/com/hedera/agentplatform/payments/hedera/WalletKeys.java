@@ -14,6 +14,11 @@ import java.util.Optional;
  */
 public interface WalletKeys {
 
+  /** This actor's wallet account id, without unlocking its key; empty for the platform. */
+  default Optional<String> accountOf(Actor actor) {
+    return walletOf(actor).map(UserWallet::accountId);
+  }
+
   /** The wallet of this actor, or empty when it has none (e.g. the platform itself). */
   Optional<UserWallet> walletOf(Actor actor);
 

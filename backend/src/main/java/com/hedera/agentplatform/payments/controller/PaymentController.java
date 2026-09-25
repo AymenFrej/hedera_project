@@ -1,5 +1,6 @@
 package com.hedera.agentplatform.payments.controller;
 
+import org.springframework.web.bind.annotation.ResponseStatus;
 import com.hedera.agentplatform.audit.dto.AuditEventResponse;
 import com.hedera.agentplatform.audit.mirror.VerificationResult;
 import com.hedera.agentplatform.payments.dto.BalanceResponse;
@@ -140,7 +141,24 @@ public class PaymentController {
   @PostMapping("/{id}/approve")
   public PaymentResponse approve(@PathVariable String id, HttpServletRequest http) {
     access.requireReviewer(http);
+    PaymentResponse payment = service.findById(id);
+    if ("TOP_UP".equals(payment.kind())) {
+      access.requireNotRequester(http, payment);
+    }
     return service.approve(id);
+  }
+
+  /**
+   * Asks for HBAR from the platform treasury into the requester's own wallet ({@code amount} in
+   * HBAR). The destination is never taken from the request. Held until another administrator
+   * approves it.
+   */
+  @PostMapping("/top-up")
+  @ResponseStatus(HttpStatus.CREATED)
+  public PaymentResponse topUp(
+      @RequestBody Map<String, String> body,
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+    return service.requestTopUp(body.get("amount"), idempotencyKey);
   }
 
   @PostMapping("/{id}/reject")
@@ -202,6 +220,9 @@ public class PaymentController {
   public Map<String, Object> status() {
     Map<String, Object> status = new LinkedHashMap<>();
     status.put("ledgerActive", service.isLedgerActive());
+    // Whose wallet payments leave from: each person's own, or the platform account for everyone.
+    status.put("paysFromUserWallets", service.paysFromUserWallets());
+    status.put("treasuryAccount", service.treasuryAccount());
     status.put("demoTokenId", demoTokenId);
     status.put("demoRecipientId", demoRecipientId);
     return status;

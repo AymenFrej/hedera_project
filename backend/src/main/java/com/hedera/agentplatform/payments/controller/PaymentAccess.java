@@ -47,6 +47,14 @@ class PaymentAccess {
     }
   }
 
+  /** Four eyes on treasury money: whoever asked for a top-up cannot approve it themselves. */
+  void requireNotRequester(HttpServletRequest request, PaymentResponse payment) {
+    if (user(request).id.equals(payment.requestedById())) {
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "Another administrator must approve your own top-up");
+    }
+  }
+
   void requireReviewer(HttpServletRequest request) {
     if (!"ADMIN".equals(user(request).role)) {
       throw new ResponseStatusException(

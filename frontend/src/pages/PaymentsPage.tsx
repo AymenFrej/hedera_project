@@ -20,6 +20,7 @@ import {
   createPayment,
   getPaymentBalance,
   getPaymentStatus,
+  requestTopUp,
   listContacts,
   listPayments,
   previewPayment,
@@ -219,7 +220,14 @@ export default function PaymentsPage() {
       </div>
 
       <LedgerBanner ledgerActive={ledgerActive} />
-      {ledgerActive && <BalanceBar balance={balance} />}
+      {ledgerActive && (
+        <BalanceBar
+          balance={balance}
+          ownWallet={status?.paysFromUserWallets ?? false}
+          treasury={status?.treasuryAccount ?? null}
+          onTopUp={() => void refresh()}
+        />
+      )}
 
       {error && (
         <div className="audit-banner danger">
@@ -421,6 +429,7 @@ function PaymentRow({
           </div>
           <div>
             <b>
+              {p.kind === 'TOP_UP' && <em className="top-up-tag">top-up</em>}
               {p.amount} {p.currency === 'HBAR' ? 'ℏ' : p.assetSymbol ?? symbolOf(p.tokenId)} → {p.destination}
             </b>
             <span className="audit-meta">
@@ -600,7 +609,60 @@ function PreviewPanel({
 }
 
 /** Facts from the Mirror Node only: what the paying account holds, and when. */
-function BalanceBar({ balance }: { balance: Balance | null }) {
+function BalanceBar({
+  balance,
+  ownWallet,
+  treasury,
+  onTopUp,
+}: {
+  balance: Balance | null
+  ownWallet: boolean
+  treasury: string | null
+  onTopUp: () => void
+}) {
+  const [asking, setAsking] = useState(false)
+  const [amount, setAmount] = useState('5')
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+  const [attemptKey, setAttemptKey] = useState(() => crypto.randomUUID())
+
+  async function ask(event: FormEvent) {
+    event.preventDefault()
+    setBusy(true)
+    setNote(null)
+    try {
+      await requestTopUp(amount, attemptKey)
+      setNote(`Asked ${amount} ℏ from the treasury${treasury ? ` (${treasury})` : ''}: an administrator must approve it.`)
+      setAsking(false)
+      setAttemptKey(crypto.randomUUID())
+      onTopUp()
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'The top-up could not be requested')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const topUp = ownWallet && (
+    <>
+      {!asking ? (
+        <button type="button" className="text-button" onClick={() => setAsking(true)}>
+          <Plus size={12} /> Top up
+        </button>
+      ) : (
+        <form className="top-up-form" onSubmit={(e) => void ask(e)}>
+          <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="HBAR" />
+          <span>ℏ from the treasury</span>
+          <button type="submit" className="button primary small" disabled={busy || !amount.trim()}>
+            Ask
+          </button>
+          <button type="button" className="text-button" onClick={() => setAsking(false)}>
+            Cancel
+          </button>
+        </form>
+      )}
+    </>
+  )
   if (!balance || !balance.available) {
     return (
       <div className="balance-bar">
@@ -608,13 +670,15 @@ function BalanceBar({ balance }: { balance: Balance | null }) {
         <span className="audit-meta">
           {balance ? balance.detail : 'Loading balance from the Mirror Node…'}
         </span>
+        {topUp}
+        {note && <span className="audit-meta top-up-note">{note}</span>}
       </div>
     )
   }
   return (
     <div className="balance-bar">
       <Wallet size={15} />
-      <span className="audit-meta">Paying account</span>
+      <span className="audit-meta">{ownWallet ? 'Your wallet' : 'Paying account (platform)'}</span>
       <b className="mono">{balance.account}</b>
       <span className="balance-asset">{balance.hbar?.amount} ℏ</span>
       {balance.tokens.map((t) => (
@@ -630,6 +694,8 @@ function BalanceBar({ balance }: { balance: Balance | null }) {
           HashScan <ExternalLink size={12} />
         </a>
       )}
+      {topUp}
+      {note && <span className="audit-meta top-up-note">{note}</span>}
     </div>
   )
 }

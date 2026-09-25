@@ -1,5 +1,10 @@
 package com.hedera.agentplatform.payments.service;
 
+import com.hedera.agentplatform.payments.hedera.PayingActor;
+import com.hedera.agentplatform.payments.hedera.WalletKeys;
+import com.hedera.agentplatform.shared.model.ActorType;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import com.hedera.agentplatform.audit.service.AuditService;
 import com.hedera.agentplatform.payments.dto.BalanceResponse;
 import com.hedera.agentplatform.payments.dto.CreatePaymentRequest;
@@ -60,6 +65,9 @@ public class PaymentService {
   private final PaymentMirrorClient mirrorClient;
   private final PolicyLocks policyLocks;
   private final TokenDecimals decimals;
+  private final PayingActor payingActor;
+  private final ObjectProvider<WalletKeys> walletKeys;
+  private final BigDecimal maxTopUp;
 
   public PaymentService(
       PaymentRepository repository,
@@ -70,7 +78,13 @@ public class PaymentService {
       ActorResolver actorResolver,
       PaymentMirrorClient mirrorClient,
       PolicyLocks policyLocks,
-      TokenDecimals decimals) {
+      TokenDecimals decimals,
+      PayingActor payingActor,
+      ObjectProvider<WalletKeys> walletKeys,
+      @Value("${payments.top-up.max-hbar:10}") BigDecimal maxTopUp) {
+    this.payingActor = payingActor;
+    this.walletKeys = walletKeys;
+    this.maxTopUp = maxTopUp;
     this.policyLocks = policyLocks;
     this.decimals = decimals;
     this.actorResolver = actorResolver;
@@ -264,7 +278,9 @@ public class PaymentService {
             PolicyLocks.LEDGER,
             () -> {
               try {
-                if (held.approvalId != null) {
+                if (PaymentEntity.TOP_UP.equals(held.kind)) {
+                  // Not a policy HOLD: the Payments rule is that a reviewer approves it, done here.
+                } else if (held.approvalId != null) {
                   policy.approve(held.approvalId);
                 } else {
                   // No approval record: ask the policy again. A reviewer answers a HOLD, not a DENY.
@@ -379,20 +395,27 @@ public class PaymentService {
     // if the backend dies mid-transfer, that id is how the Mirror Node tells us what happened.
     // With the optimistic lock this is also what stops two concurrent approvals from sending the
     // same payment twice: the second save fails.
+    // Sent as the payment's own payer, whoever triggers it: a held payment approved by a reviewer
+    // still leaves from the requester's wallet, and a top-up from the treasury.
+    Actor payer = payingActorOf(payment);
     payment.status = PaymentStatus.SUBMITTED.name();
-    payment.transactionId = gateway.newTransactionId();
-    payment = touch(payment);
+    payment.transactionId = payingActor.as(payer, gateway::newTransactionId);
+    PaymentEntity sending = touch(payment);
 
     PaymentResult result =
-        payment.tokenId == null
-            ? gateway.transferHbar(
-                payment.transactionId, payment.destination, payment.amountUnits, payment.memo)
-            : gateway.transferToken(
-                payment.transactionId,
-                payment.tokenId,
-                payment.destination,
-                payment.amountUnits,
-                payment.memo);
+        payingActor.as(
+            payer,
+            () ->
+                sending.tokenId == null
+                    ? gateway.transferHbar(
+                        sending.transactionId, sending.destination, sending.amountUnits, sending.memo)
+                    : gateway.transferToken(
+                        sending.transactionId,
+                        sending.tokenId,
+                        sending.destination,
+                        sending.amountUnits,
+                        sending.memo));
+    payment = sending;
 
     payment.sourceAccount = result.sourceAccount();
     switch (result.outcome()) {
@@ -411,6 +434,93 @@ public class PaymentService {
     payment = touch(payment);
     audit("TRANSFER", result.outcome().name(), payment);
     return payment;
+  }
+
+  /** Whose wallet the payment leaves from: the requester's, or the treasury for a top-up. */
+  private static Actor payingActorOf(PaymentEntity payment) {
+    if (PaymentEntity.TOP_UP.equals(payment.kind) || payment.requestedById == null) {
+      return Actor.system("treasury");
+    }
+    ActorType type;
+    try {
+      type = ActorType.valueOf(payment.requestedByType);
+    } catch (IllegalArgumentException | NullPointerException e) {
+      return Actor.system("treasury");
+    }
+    return new Actor(type, payment.requestedById, null);
+  }
+
+  /**
+   * Asks for HBAR from the platform treasury into the requester's own wallet. The destination is
+   * the requester's wallet as the Accounts module records it, never a value from the request. It is
+   * held until an administrator other than the requester approves it: the envelopes are the
+   * requester's spending budget, not the treasury's, so the Policies module is not asked.
+   */
+  public PaymentResponse requestTopUp(String amount, String idempotencyKey) {
+    if (!gateway.isLive()) {
+      throw new IllegalStateException("Top-ups need Hedera credentials: nothing can be sent in simulation");
+    }
+    WalletKeys wallets = walletKeys.getIfAvailable();
+    if (wallets == null) {
+      throw new IllegalStateException(
+          "Payments leave from the platform account (PAYMENTS_PAY_FROM=platform): there is no wallet to top up");
+    }
+    Actor requester = actorResolver.currentActor();
+    String wallet = wallets.accountOf(requester)
+        .orElseThrow(() -> new IllegalStateException("Only a person with a wallet can ask for a top-up"));
+    BigDecimal value;
+    try {
+      value = new BigDecimal(amount == null ? "" : amount.trim());
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException("The amount must be a number of HBAR, e.g. 5");
+    }
+    if (value.signum() <= 0 || value.compareTo(maxTopUp) > 0) {
+      throw new IllegalArgumentException(
+          "A top-up is between 0 and " + maxTopUp.stripTrailingZeros().toPlainString() + " HBAR");
+    }
+    PaymentResponse earlier = earlierFor(idempotencyKey);
+    if (earlier != null) {
+      return earlier;
+    }
+    boolean pending = repository.findAll().stream().anyMatch(p ->
+        PaymentEntity.TOP_UP.equals(p.kind) && requester.id().equals(p.requestedById)
+            && PaymentStatus.AWAITING_APPROVAL.name().equals(p.status));
+    if (pending) {
+      throw new IllegalStateException("You already have a top-up waiting for an administrator");
+    }
+    PaymentEntity topUp =
+        draft(new CreatePaymentRequest(wallet, value.toPlainString(), null, null, "Wallet top-up"));
+    topUp.kind = PaymentEntity.TOP_UP;
+    topUp.idempotencyKey = blankToNull(idempotencyKey);
+    topUp.status = PaymentStatus.AWAITING_APPROVAL.name();
+    topUp.policyVerdict = PaymentPolicy.Verdict.HOLD.name();
+    topUp.policyRuleId = "payments.top-up";
+    topUp.policyReason = "treasury HBAR reaches a wallet only after an administrator approves it";
+    topUp = repository.saveAndFlush(topUp);
+    audit("TOP_UP_REQUEST", "AWAITING_APPROVAL", topUp);
+    return toResponse(topUp);
+  }
+
+  /** The payment an idempotency key already created, or null. */
+  private PaymentResponse earlierFor(String idempotencyKey) {
+    String key = blankToNull(idempotencyKey);
+    if (key == null) {
+      return null;
+    }
+    if (!key.matches(IDEMPOTENCY_KEY)) {
+      throw new IllegalArgumentException("Idempotency-Key must be 8 to 64 letters, digits, '-', '_' or ':'");
+    }
+    return repository.findByIdempotencyKey(key).map(this::toResponse).orElse(null);
+  }
+
+  /** The platform treasury's account, where top-ups come from; null in simulation. */
+  public String treasuryAccount() {
+    return payingActor.as(Actor.system("treasury"), gateway::payerAccount);
+  }
+
+  /** Whether payments leave from each person's own wallet (true) or from the platform account. */
+  public boolean paysFromUserWallets() {
+    return walletKeys.getIfAvailable() != null;
   }
 
   /**
@@ -695,7 +805,8 @@ public class PaymentService {
         p.requestedByType,
         p.requestedById,
         p.createdAt,
-        p.updatedAt);
+        p.updatedAt,
+        p.kind);
   }
 
   /**

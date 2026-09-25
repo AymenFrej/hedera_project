@@ -418,3 +418,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .token-verification .check{display:flex;align-items:center;gap:7px}
 .token-verification .check em{font-style:normal;opacity:.75;margin-left:auto}
 @media (max-width:900px){.studio-grid,.passport-tools,.token-promises{grid-template-columns:1fr}.studio-form{border-right:0;border-bottom:1px solid #242a37}}
+
+/* --- Wallet top-up ----------------------------------------------------------------------------- */
+.balance-bar{flex-wrap:wrap}
+.top-up-form{display:flex;align-items:center;gap:6px}
+.top-up-form input{width:64px;border:1px solid #2c3241;background:#171b26;color:#d7dce8;border-radius:6px;padding:5px 8px;font-family:inherit;font-size:12px}
+.top-up-form span{font-size:11px;color:#8a93a6}
+.top-up-note{flex-basis:100%}
+.top-up-tag{font:9px 'DM Mono',monospace;font-style:normal;color:#e8bd6b;border:1px solid #59431d;border-radius:4px;padding:1px 5px;margin-right:7px;vertical-align:2px}

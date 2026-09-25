@@ -78,6 +78,19 @@ export type PaymentsStatus = {
   /** Demo HTS token and a recipient already associated with it, when configured. */
   demoTokenId: string | null
   demoRecipientId: string | null
+  /** true: payments leave from each person's own wallet; false: from the platform account. */
+  paysFromUserWallets?: boolean
+  /** Where top-ups come from; null in simulation. */
+  treasuryAccount?: string | null
+}
+
+/** Treasury HBAR into your own wallet; held until another administrator approves it. */
+export async function requestTopUp(amount: string, idempotencyKey: string): Promise<Payment> {
+  return request('/payments/top-up', {
+    method: 'POST',
+    body: JSON.stringify({ amount }),
+    headers: { 'Idempotency-Key': idempotencyKey },
+  })
 }
 
 export async function getPaymentStatus(): Promise<PaymentsStatus> {
@@ -381,6 +394,8 @@ export type Payment = {
   /** Who asked for the payment. Resolved server-side, never sent by the client. */
   requestedByType: 'USER' | 'AGENT' | 'SYSTEM' | null
   requestedById: string | null
+  /** PAYMENT, or TOP_UP (treasury HBAR to the requester's own wallet) */
+  kind?: 'PAYMENT' | 'TOP_UP'
   createdAt: string | null
   updatedAt: string | null
 }
