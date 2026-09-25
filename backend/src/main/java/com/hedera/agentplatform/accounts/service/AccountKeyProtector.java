@@ -14,9 +14,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class AccountKeyProtector {
     private final SecretKeySpec key;
+    private final boolean configured;
     public AccountKeyProtector(HederaProperties properties) {
         String configured = properties.getAccountKeyEncryptionSecret();
         String source = configured == null || configured.isBlank() ? properties.getOperatorPrivateKey() : configured;
+        this.configured = source != null && !source.isBlank();
         if (source == null || source.isBlank()) source = "local-development-only-account-key-secret";
         try { key = new SecretKeySpec(MessageDigest.getInstance("SHA-256").digest(source.getBytes(StandardCharsets.UTF_8)), "AES"); }
         catch (Exception e) { throw new IllegalStateException(e); }
@@ -25,5 +27,9 @@ public class AccountKeyProtector {
         if (raw == null || raw.isBlank()) return null;
         try { byte[] iv = new byte[12]; new SecureRandom().nextBytes(iv); Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, iv)); byte[] encrypted = cipher.doFinal(raw.getBytes(StandardCharsets.UTF_8)); byte[] combined = new byte[iv.length + encrypted.length]; System.arraycopy(iv, 0, combined, 0, iv.length); System.arraycopy(encrypted, 0, combined, iv.length, encrypted.length); return Base64.getEncoder().encodeToString(combined); }
         catch (Exception e) { throw new IllegalStateException("Unable to protect account key", e); }
+    }
+    public void requireConfigured() {
+        if (!configured) throw new com.hedera.agentplatform.accounts.hedera.WalletProvisioningException(
+            "Real wallet creation is unavailable: configure Hedera credentials and HEDERA_ACCOUNT_KEY_ENCRYPTION_SECRET on the backend. No account was created or wallet changed.");
     }
 }

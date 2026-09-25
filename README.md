@@ -18,7 +18,14 @@ are configured. Treat seeded demo users and authentication as development-only, 
 ## Team demo logins (local development only)
 
 Open [http://localhost:5173/login](http://localhost:5173/login) after starting the backend and
-frontend. On a fresh database, Flyway V7 creates these accounts:
+Open [http://localhost:5173/login](http://localhost:5173/login) after starting the backend and
+frontend. Fresh databases contain no seeded users. Register a user, or have an administrator
+create one, only after configuring valid Hedera testnet credentials and the account-key encryption
+secret. Every new account receives a real Hedera wallet; if provisioning cannot be confirmed,
+the request fails and no application account is saved.
+
+Existing databases are cleaned of the legacy seeded demo accounts by Flyway V18. Existing real
+accounts and their encrypted keys are retained.
 
 | Role | Email | Password | What to test |
 | --- | --- | --- | --- |
@@ -38,8 +45,8 @@ Keep operator credentials and the wallet-key encryption secret in your private e
 never in Git. Do not rotate the encryption secret without a wallet-key migration.
 
 Quick manual check: log in as ADMIN, create a disposable user, edit it, change its role,
-close it and restore it. Use **Delete mock account** only for a closed mock account without
-stored keys. Real wallets can be closed/restored but their keys are never purged by CRUD.
+Quick manual check: register a disposable user, or create one as ADMIN, edit it, change its role,
+close it and restore it. Real wallets can be closed/restored but their keys are never purged by CRUD.
 Then log in as each role to check the sidebar and denied routes. Password changes and role
 changes invalidate old sessions; backend restarts require signing in again.
 

@@ -25,7 +25,7 @@ class MainMigrationUpgradeTest {
                 assertThat(rows.next()).isTrue(); assertThat(rows.getLong(1)).isEqualTo(321L * 100_000_000L);
             }
             try (var rows = statement.executeQuery("SELECT COUNT(*) FROM users")) {
-                assertThat(rows.next()).isTrue(); assertThat(rows.getInt(1)).isEqualTo(4);
+                assertThat(rows.next()).isTrue(); assertThat(rows.getInt(1)).isEqualTo(0);
             }
             statement.executeQuery("SELECT encrypted_private_key FROM accounts").close();
         }

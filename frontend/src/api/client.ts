@@ -39,9 +39,11 @@ export async function createManagedUser(body: { email: string; password: string;
 export async function updateManagedUserRole(id: string, role: string) { return request<ManagedUser>(`/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }) }
 export async function deleteManagedUser(id: string) { return request<void>(`/admin/users/${id}`, { method: 'DELETE' }) }
 export async function restoreManagedUser(id: string, role: string) { return request<ManagedUser>(`/admin/users/${id}/restore`, { method: 'POST', body: JSON.stringify({role}) }) }
-export async function provisionManagedWallet(id: string) { return request<ManagedUser>(`/admin/users/${id}/wallet`, { method: 'POST' }) }
-export async function deleteMockUser(id: string) { return request<void>(`/admin/users/${id}/mock`, { method: 'DELETE' }) }
 export async function editManagedProfile(id: string, email: string, displayName: string) { return request<ManagedUser>(`/admin/users/${id}/profile`, {method: 'PUT', body: JSON.stringify({email, displayName})}) }
+export type AccountAgentResult = { taskId: string; status: string; message: string; data: Record<string, unknown> }
+export async function runAccountAgent(prompt: string): Promise<AccountAgentResult> {
+  return request('/admin/users/agent', { method: 'POST', body: JSON.stringify({ requestId: crypto.randomUUID(), intent: 'CREATE_ACCOUNT', prompt, context: {} }) })
+}
 
 export async function getHealth(): Promise<{ status: string }> {
   return request('/health')
