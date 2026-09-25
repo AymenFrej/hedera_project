@@ -26,7 +26,7 @@ public class SdkHederaAccountGateway implements HederaAccountGateway {
             AccountId accountId = receipt.accountId;
             return new AccountGatewayResult(accountId.toString(), "ACTIVE", false, key.toString());
         } catch (Exception e) {
-            throw new IllegalStateException("Unable to create Hedera account", e);
+            throw new WalletProvisioningException("Hedera wallet creation could not be confirmed. No app account was saved or wallet changed. Ask the administrator to check the operator balance, credentials and network before retrying.", e);
         }
     }
 

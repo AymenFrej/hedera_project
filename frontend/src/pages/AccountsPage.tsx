@@ -12,7 +12,7 @@ export default function AccountsPage() {
     {error && <p role="alert">{error}</p>}
     {account && <><h2>Hedera account ID</h2><code>{account.hederaAccountId}</code>
       <p>Status: {account.status}</p><p>Recorded balance: {account.balance} HBAR (not a live balance query)</p>
-      {account.hederaAccountId.includes('mock') || account.hederaAccountId.includes('demo') ? <p>This is a demo wallet.</p> : <p>Your wallet signing key is kept on the server.</p>}
+      <p>Your real Hedera wallet signing key is kept on the server.</p>
       <button className="button secondary" onClick={async () => { try { await navigator.clipboard.writeText(account.hederaAccountId); setCopied(true) } catch { setError('Copy failed. Select the account ID to copy it manually.') } }}>{copied ? 'Copied' : 'Copy wallet ID'}</button>
     </>}
     <button className="button secondary" disabled={busy} onClick={() => void load()}>{busy ? 'Loading…' : 'Refresh wallet'}</button>

@@ -87,10 +87,8 @@ test('admin lifecycle actions use separate authenticated endpoints', async () =>
   await client.editManagedProfile('u','user@example.test','User')
   await client.deleteManagedUser('u')
   await client.restoreManagedUser('u','USER')
-  await client.provisionManagedWallet('u')
-  await client.deleteMockUser('u')
   assert.deepEqual(calls,[
     ['/admin/users/u/profile','PUT'],['/admin/users/u','DELETE'],
-    ['/admin/users/u/restore','POST'],['/admin/users/u/wallet','POST'],['/admin/users/u/mock','DELETE'],
+    ['/admin/users/u/restore','POST'],
   ])
 })

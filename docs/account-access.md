@@ -28,13 +28,17 @@ The displayed balance is a stored balance, not a live Hedera query.
 Run backend: cd backend, then ./mvnw test (mvnw.cmd on Windows).
 Run frontend: cd frontend, then npm test, npm run build, npm run lint.
 Account integration tests use an isolated H2 database and a mocked wallet gateway.
-They do not create live wallets or spend HBAR. Frontend tests cover the permission matrix,
+Account integration tests use an isolated H2 database and a mocked gateway only as a test double.
+Production account creation always requires real Hedera provisioning and encrypted key storage;
+it never falls back to a mock account. Frontend tests cover the permission matrix,
 empty successful responses, failed/successful deletion, logout, session expiry and profile updates.
 
 Manually log in as each role at /login. Check sidebar links, open forbidden paths directly,
 inspect My Wallet, update a profile and password, and verify logout returns to login.
 For administrative creation and deletion, use disposable testnet users only; creating a
-real wallet incurs network fees. After a role change, the affected user must sign in again.
+For administrative creation, use disposable testnet users only; creating a real wallet incurs
+network fees. Without Hedera operator credentials and an encryption secret, creation returns an
+error and saves no user or account. After a role change, the affected user must sign in again.
 
 ## Remaining production work
 
@@ -50,10 +54,6 @@ Other modules' placeholder actions are outside the account-management regression
 - Close account: DELETE /api/v1/admin/users/{id} revokes sessions and retains the wallet and keys.
 - Restore: POST /api/v1/admin/users/{id}/restore with a selected role enables login using the existing password.
 - Create real wallet: POST /api/v1/admin/users/{id}/wallet upgrades only an active mock account without stored keys.
-  Missing real credentials cause an error, not a silently successful mock upgrade.
-- Delete mock account: DELETE /api/v1/admin/users/{id}/mock permanently removes only a closed mock
-  account without stored keys. Confirmation is required in the UI; the email can then be reused.
-
-These actions require ADMIN or PLATFORM. Real wallet accounts can be closed/restored, but their
+Account creation requires ADMIN or PLATFORM for administrative creation. Real wallet accounts can be closed/restored, but their
 keys cannot be purged through the CRUD API. Explicit restoration is required before role changes.
-Wallet provisioning and administrative lifecycle updates lock the user row to serialize concurrent changes.
+Administrative lifecycle updates lock the user row to serialize concurrent changes.

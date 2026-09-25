@@ -15,6 +15,7 @@
     <description>Starter modular monolith for agentic Hedera business operations</description>
     <properties>
         <java.version>21</java.version>
+        <bouncycastle.version>1.78.1</bouncycastle.version>
     </properties>
     <dependencies>
         <dependency>
@@ -46,6 +47,16 @@
             <groupId>com.hedera.hashgraph</groupId>
             <artifactId>sdk</artifactId>
             <version>2.77.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
         </dependency>
         <!--
             The Hedera SDK declares grpc-api but ships no channel provider.

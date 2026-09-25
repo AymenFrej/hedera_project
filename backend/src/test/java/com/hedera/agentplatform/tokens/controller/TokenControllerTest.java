@@ -7,6 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.agentplatform.accounts.auth.AuthSessionService;
+import com.hedera.agentplatform.accounts.TestAccountFixtures;
+import com.hedera.agentplatform.accounts.repository.AccountRepository;
+import org.junit.jupiter.api.BeforeEach;
 import com.hedera.agentplatform.accounts.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,7 +33,13 @@ class TokenControllerTest {
 
   @Autowired private WebApplicationContext context;
   @Autowired private UserRepository users;
+  @Autowired private AccountRepository accounts;
   @Autowired private AuthSessionService sessions;
+
+  @BeforeEach
+  void setUp() {
+    TestAccountFixtures.ensure(users, accounts);
+  }
 
   private MockMvc as(String userId) {
     String token = sessions.create(users.findById(userId).orElseThrow());

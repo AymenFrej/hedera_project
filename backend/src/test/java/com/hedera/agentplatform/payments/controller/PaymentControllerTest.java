@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.hedera.agentplatform.accounts.auth.AuthSessionService;
+import com.hedera.agentplatform.accounts.TestAccountFixtures;
+import com.hedera.agentplatform.accounts.repository.AccountRepository;
 import com.hedera.agentplatform.accounts.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +25,7 @@ class PaymentControllerTest {
 
   @Autowired private WebApplicationContext context;
   @Autowired private UserRepository users;
+  @Autowired private AccountRepository accounts;
   @Autowired private AuthSessionService sessions;
 
   /** Signed in as the seeded USER (V7 demo login), through the real session and interceptor. */
@@ -37,6 +40,7 @@ class PaymentControllerTest {
 
   @BeforeEach
   void setUp() {
+    TestAccountFixtures.ensure(users, accounts);
     mockMvc = as("user_demo");
   }
 

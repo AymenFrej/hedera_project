@@ -8,6 +8,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(com.hedera.agentplatform.accounts.hedera.WalletProvisioningException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    Map<String, String> handleWalletProvisioning(com.hedera.agentplatform.accounts.hedera.WalletProvisioningException exception) {
+        return Map.of("error", exception.getMessage());
+    }
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     Map<String, String> handleIllegalArgument(IllegalArgumentException exception) {

@@ -21,7 +21,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
+@SpringBootTest(properties = "hedera.account-key-encryption-secret=isolated-test-encryption-secret")
 @AutoConfigureMockMvc
 @Transactional
 class AccountsAccessTest {
@@ -34,7 +34,7 @@ class AccountsAccessTest {
 
     @BeforeEach void mockWallet() {
         when(gateway.createAccount("0")).thenAnswer(invocation ->
-            new HederaAccountGateway.AccountGatewayResult("0.0.12345", "ACTIVE", true, "test-private-key"));
+            new HederaAccountGateway.AccountGatewayResult("0.0.12345", "ACTIVE", false, "test-private-key"));
     }
     JsonNode register(String role) throws Exception {
         String body = json.writeValueAsString(Map.of("email", UUID.randomUUID()+"@example.test", "password", "OriginalPass123!", "displayName", "Test User"));
@@ -161,35 +161,45 @@ class AccountsAccessTest {
             .contentType("application/json").content(json.writeValueAsString(Map.of("email",admin.get("email").asText(),"displayName","Duplicate"))))
             .andExpect(status().isBadRequest());
     }
-    @Test void onlyClosedMockAccountsCanBePermanentlyDeletedAndEmailReused() throws Exception {
+    @Test void removedMockAccountEndpointsDoNotExist() throws Exception {
         var admin = register("ADMIN"); var user = register("USER");
-        String id=user.get("userId").asText(); String accountId=user.get("account").get("id").asText();
-        mvc.perform(delete("/api/v1/admin/users/"+id+"/mock").header("Authorization",auth(admin))).andExpect(status().isBadRequest());
-        mvc.perform(delete("/api/v1/admin/users/"+id).header("Authorization",auth(admin))).andExpect(status().isOk());
-        mvc.perform(delete("/api/v1/admin/users/"+id+"/mock").header("Authorization",auth(admin))).andExpect(status().isBadRequest());
-        assertThat(accounts.findById(accountId).orElseThrow().encryptedPrivateKey).isNotBlank();
-        var account=accounts.findById(accountId).orElseThrow(); account.hederaAccountId="0.0.mock"; account.encryptedPrivateKey=null; accounts.saveAndFlush(account);
-        mvc.perform(delete("/api/v1/admin/users/"+id+"/mock").header("Authorization",auth(admin))).andExpect(status().isOk());
-        assertThat(users.findById(id)).isEmpty(); assertThat(accounts.findById(accountId)).isEmpty();
-        mvc.perform(post("/api/v1/auth/register").contentType("application/json")
-            .content(json.writeValueAsString(Map.of("email",user.get("email").asText(),"password","OriginalPass123!"))))
-            .andExpect(status().isOk());
+        String id = user.get("userId").asText();
+        mvc.perform(post("/api/v1/admin/users/" + id + "/wallet").header("Authorization", auth(admin)))
+            .andExpect(status().isNotFound());
+        mvc.perform(delete("/api/v1/admin/users/" + id + "/mock").header("Authorization", auth(admin)))
+            .andExpect(status().isNotFound());
     }
-    @Test void mockWalletUpgradeRequiresRealGatewayAndCannotReplaceRealKeys() throws Exception {
-        var admin=register("ADMIN"); var user=register("USER");
-        String id=user.get("userId").asText(); String accountId=user.get("account").get("id").asText();
-        var account=accounts.findById(accountId).orElseThrow(); account.hederaAccountId="0.0.mock"; account.encryptedPrivateKey=null; account.status="MOCK"; accounts.saveAndFlush(account);
-        mvc.perform(post("/api/v1/admin/users/"+id+"/wallet").header("Authorization",auth(admin))).andExpect(status().isBadRequest());
-        assertThat(accounts.findById(accountId).orElseThrow().hederaAccountId).isEqualTo("0.0.mock");
-        when(gateway.createAccount("0")).thenReturn(new HederaAccountGateway.AccountGatewayResult("0.0.99999","ACTIVE",false,"new-test-key"));
-        mvc.perform(post("/api/v1/admin/users/"+id+"/wallet").header("Authorization",auth(admin)))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.hederaAccountId").value("0.0.99999"));
-        String protectedKey=accounts.findById(accountId).orElseThrow().encryptedPrivateKey;
-        assertThat(protectedKey).isNotBlank().isNotEqualTo("new-test-key");
-        clearInvocations(gateway);
-        mvc.perform(post("/api/v1/admin/users/"+id+"/wallet").header("Authorization",auth(admin))).andExpect(status().isBadRequest());
-        verifyNoInteractions(gateway);
-        assertThat(accounts.findById(accountId).orElseThrow().encryptedPrivateKey).isEqualTo(protectedKey);
+    @Test void registrationRejectsMockAndMissingKeyWithoutSaving() throws Exception {
+        long beforeUsers = users.count(); long beforeAccounts = accounts.count();
+        for (var result : new HederaAccountGateway.AccountGatewayResult[]{
+            new HederaAccountGateway.AccountGatewayResult("0.0.mock", "MOCK", true),
+            new HederaAccountGateway.AccountGatewayResult("0.0.12345", "ACTIVE", false, null),
+            new HederaAccountGateway.AccountGatewayResult("0.0.mock", "ACTIVE", false, "key")
+        }) {
+            when(gateway.createAccount("0")).thenReturn(result);
+            mvc.perform(post("/api/v1/auth/register").contentType("application/json")
+                .content("{\"email\":\"no-mock@example.test\",\"password\":\"Password123!\"}"))
+                .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error").exists());
+            assertThat(users.count()).isEqualTo(beforeUsers);
+            assertThat(accounts.count()).isEqualTo(beforeAccounts);
+        }
+    }
+    @Test void adminCreationRejectsMockWithoutSaving() throws Exception {
+        var admin = register("ADMIN");
+        long beforeUsers = users.count(); long beforeAccounts = accounts.count();
+        when(gateway.createAccount("0")).thenReturn(new HederaAccountGateway.AccountGatewayResult("0.0.mock", "MOCK", true));
+        mvc.perform(post("/api/v1/admin/users").header("Authorization", auth(admin)).contentType("application/json")
+            .content("{\"email\":\"no-mock-admin@example.test\",\"password\":\"Password123!\",\"role\":\"USER\"}"))
+            .andExpect(status().isServiceUnavailable());
+        assertThat(users.count()).isEqualTo(beforeUsers); assertThat(accounts.count()).isEqualTo(beforeAccounts);
+    }
+    @Test void unavailableHederaReturnsReadableErrorWithoutSaving() throws Exception {
+        long before = users.count();
+        when(gateway.createAccount("0")).thenThrow(new com.hedera.agentplatform.accounts.hedera.WalletProvisioningException("Hedera is unavailable. No account was created."));
+        mvc.perform(post("/api/v1/auth/register").contentType("application/json")
+            .content("{\"email\":\"failed@example.test\",\"password\":\"Password123!\"}"))
+            .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error").value("Hedera is unavailable. No account was created."));
+        assertThat(users.count()).isEqualTo(before);
     }
     @Test void lifecycleOperationsDenyOrdinaryUsersAndReturnNotFound() throws Exception {
         var admin=register("ADMIN"); var user=register("USER");

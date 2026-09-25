@@ -8,7 +8,6 @@ import com.hedera.agentplatform.accounts.dto.PasswordChangeRequest;
 import com.hedera.agentplatform.accounts.dto.ProfileUpdateRequest;
 import com.hedera.agentplatform.accounts.entity.AccountEntity;
 import com.hedera.agentplatform.accounts.entity.UserEntity;
-import com.hedera.agentplatform.accounts.hedera.HederaAccountGateway;
 import com.hedera.agentplatform.accounts.repository.AccountRepository;
 import com.hedera.agentplatform.accounts.repository.UserRepository;
 import java.nio.charset.StandardCharsets;
@@ -22,11 +21,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
     private final UserRepository users;
     private final AccountRepository accounts;
-    private final HederaAccountGateway hedera;
+    private final RealWalletService hedera;
     private final AuthSessionService sessions;
     private final AccountKeyProtector keyProtector;
 
-    public AuthService(UserRepository users, AccountRepository accounts, HederaAccountGateway hedera, AuthSessionService sessions, AccountKeyProtector keyProtector) {
+    public AuthService(UserRepository users, AccountRepository accounts, RealWalletService hedera, AuthSessionService sessions, AccountKeyProtector keyProtector) {
         this.users = users; this.accounts = accounts; this.hedera = hedera; this.sessions = sessions; this.keyProtector = keyProtector;
     }
 
