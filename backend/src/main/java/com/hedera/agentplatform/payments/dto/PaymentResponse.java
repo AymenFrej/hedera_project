@@ -26,4 +26,6 @@ public record PaymentResponse(
     String requestedByType,
     String requestedById,
     Instant createdAt,
-    Instant updatedAt) {}
+    Instant updatedAt,
+    /** PAYMENT, or TOP_UP (treasury HBAR to the requester's own wallet). */
+    String kind) {}

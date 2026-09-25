@@ -1,6 +1,5 @@
 package com.hedera.agentplatform.payments.hedera;
 
-import com.hedera.agentplatform.shared.security.ActorResolver;
 import com.hedera.hashgraph.sdk.Client;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +25,7 @@ public class HederaPaymentGatewayConfig {
       ObjectProvider<Client> clientProvider,
       ObjectProvider<PaymentSigner> signerProvider,
       ObjectProvider<WalletKeys> walletKeysProvider,
-      ActorResolver actorResolver) {
+      PayingActor payingActor) {
     Client client = clientProvider.getIfAvailable();
     if (client == null) {
       log.warn(
@@ -39,7 +38,7 @@ public class HederaPaymentGatewayConfig {
     WalletKeys walletKeys = walletKeysProvider.getIfAvailable();
     if (signer == null && walletKeys != null) {
       log.info("Payments leave from the signed-in user's own wallet (custodial keys).");
-      signer = new CustodialPaymentSigner(walletKeys, actorResolver);
+      signer = new CustodialPaymentSigner(walletKeys, payingActor);
     }
     if (signer == null) {
       log.warn(

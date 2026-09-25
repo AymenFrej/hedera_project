@@ -58,6 +58,12 @@ public class PaymentEntity {
   /** Client-chosen key: the same key twice returns the first payment instead of paying twice. */
   public String idempotencyKey;
 
+  /** PAYMENT, or TOP_UP: treasury HBAR to the requester's own wallet (see V19). */
+  public String kind = PaymentEntity.PAYMENT;
+
+  public static final String PAYMENT = "PAYMENT";
+  public static final String TOP_UP = "TOP_UP";
+
   public Instant createdAt;
   public Instant updatedAt;
 

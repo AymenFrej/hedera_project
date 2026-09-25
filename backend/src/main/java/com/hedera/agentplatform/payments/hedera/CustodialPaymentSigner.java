@@ -1,7 +1,6 @@
 package com.hedera.agentplatform.payments.hedera;
 
 import com.hedera.agentplatform.payments.hedera.WalletKeys.UserWallet;
-import com.hedera.agentplatform.shared.security.ActorResolver;
 import com.hedera.hashgraph.sdk.AccountId;
 import com.hedera.hashgraph.sdk.Client;
 import com.hedera.hashgraph.sdk.TransferTransaction;
@@ -10,17 +9,18 @@ import java.util.Optional;
 /**
  * Pays from the wallet of whoever is making the request.
  *
- * <p>The actor comes from {@link ActorResolver}, i.e. from the server-side session, never from the
- * request. When the actor has a wallet ({@link WalletKeys}), the transaction id is generated for the
+ * <p>The actor comes from {@link PayingActor}: the signed-in person from the server-side session,
+ * never from the request, or, while a payment is sent, that payment's own payer (so a held payment
+ * approved by a reviewer still leaves from the requester's wallet). When the actor has a wallet ({@link WalletKeys}), the transaction id is generated for the
  * user's account (so the user pays the fee), the funds leave that account, and the user's key signs.
  * When it has none (the platform itself, or no login yet), the platform operator pays, as before.
  */
 public class CustodialPaymentSigner implements PaymentSigner {
 
   private final WalletKeys wallets;
-  private final ActorResolver actors;
+  private final PayingActor actors;
 
-  public CustodialPaymentSigner(WalletKeys wallets, ActorResolver actors) {
+  public CustodialPaymentSigner(WalletKeys wallets, PayingActor actors) {
     this.wallets = wallets;
     this.actors = actors;
   }
@@ -42,6 +42,6 @@ public class CustodialPaymentSigner implements PaymentSigner {
   }
 
   private Optional<UserWallet> wallet() {
-    return wallets.walletOf(actors.currentActor());
+    return wallets.walletOf(actors.current());
   }
 }
