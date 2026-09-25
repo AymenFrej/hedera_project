@@ -9,6 +9,7 @@ This UI uses the existing backend contracts. Payments, Tokens and contextual AI 
 | Profile | `/settings`: edit email/name, change password with confirmation, logout, wallet refresh | Every active role |
 | Account closure | Settings confirmation; on-chain wallet/history retained | USER, AUDITOR; privileged users require another administrator |
 | User administration | `/admin/users`: create, search, filter, edit, change role, close/restore, provision real wallet; restricted mock deletion | ADMIN, PLATFORM |
+| User administration | `/admin/users`: create real-wallet users, search, filter, edit, change role, close/restore | ADMIN, PLATFORM |
 | Policy engine | `/policies`: backend rulebook, shared demo budgets, known counterparties, validated spend request, result/evidence links | ADMIN, PLATFORM |
 | Approvals | `/approvals`: status filter, refresh, timestamps/actor, confirmed approve/reject, originating audit link | ADMIN, PLATFORM |
 | Audit | `/audit`: search, anchor filter, actor/status/IDs, proof fields, Mirror Node verification | ADMIN, AUDITOR, PLATFORM |
@@ -23,6 +24,8 @@ Navigation follows the existing role matrix. Backend authorization remains autho
 - An audit event is not necessarily anchored. Its anchor status is displayed separately from the business outcome.
 - A failed verification or network error is not labelled tampering. Different available hashes are reported as a hash mismatch.
 - Demo wallets are labelled as such. This UI does not silently replace or delete real wallets or stored keys.
+- Every account shown by the account-management UI is expected to have a real Hedera wallet. Creation fails if provisioning cannot be confirmed.
+For manual review, register a disposable user after configuring Hedera credentials. Check each allowed route, narrow/wide viewport layouts, keyboard focus, loading/failure states and logout.
 
 ## Tests
 

@@ -66,6 +66,9 @@ public class HederaClientConfig {
     if (raw.startsWith("0x") || raw.startsWith("0X")) {
       raw = raw.substring(2);
     }
+    if (raw.startsWith("30") && raw.matches("[0-9a-fA-F]+")) {
+      return PrivateKey.fromStringDER(raw);
+    }
     return "ED25519".equalsIgnoreCase(properties.getKeyType())
         ? PrivateKey.fromStringED25519(raw)
         : PrivateKey.fromStringECDSA(raw);

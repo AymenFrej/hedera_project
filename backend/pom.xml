@@ -15,6 +15,7 @@
     <description>Starter modular monolith for agentic Hedera business operations</description>
     <properties>
         <java.version>21</java.version>
+        <bouncycastle.version>1.78.1</bouncycastle.version>
     </properties>
     <dependencies>
         <dependency>
@@ -52,6 +53,16 @@
             <artifactId>sdk</artifactId>
             <version>2.77.0</version>
         </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
+        </dependency>
         <!--
             The Hedera SDK declares grpc-api but ships no channel provider.
             Without this the client fails at runtime with
@@ -63,6 +74,12 @@
             <artifactId>grpc-netty-shaded</artifactId>
             <version>1.83.1</version>
             <scope>runtime</scope>
+        </dependency>
+        <!-- Claude API: turns a payment sentence into a structured PaymentIntent (never a transaction). -->
+        <dependency>
+            <groupId>com.anthropic</groupId>
+            <artifactId>anthropic-java</artifactId>
+            <version>2.34.0</version>
         </dependency>
         <dependency>
             <groupId>com.h2database</groupId>

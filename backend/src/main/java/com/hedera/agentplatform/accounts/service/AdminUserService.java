@@ -6,7 +6,6 @@ import com.hedera.agentplatform.accounts.dto.ManagedUserResponse;
 import com.hedera.agentplatform.accounts.dto.RoleUpdateRequest;
 import com.hedera.agentplatform.accounts.entity.AccountEntity;
 import com.hedera.agentplatform.accounts.entity.UserEntity;
-import com.hedera.agentplatform.accounts.hedera.HederaAccountGateway;
 import com.hedera.agentplatform.accounts.repository.AccountRepository;
 import com.hedera.agentplatform.accounts.repository.UserRepository;
 import java.math.BigDecimal;
@@ -20,8 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AdminUserService {
-    private final UserRepository users; private final AccountRepository accounts; private final AuthSessionService sessions; private final HederaAccountGateway hedera; private final AccountKeyProtector keys;
-    public AdminUserService(UserRepository users, AccountRepository accounts, AuthSessionService sessions, HederaAccountGateway hedera, AccountKeyProtector keys) { this.users=users;this.accounts=accounts;this.sessions=sessions;this.hedera=hedera;this.keys=keys; }
+    private final UserRepository users; private final AccountRepository accounts; private final AuthSessionService sessions; private final RealWalletService hedera; private final AccountKeyProtector keys;
+    public AdminUserService(UserRepository users, AccountRepository accounts, AuthSessionService sessions, RealWalletService hedera, AccountKeyProtector keys) { this.users=users;this.accounts=accounts;this.sessions=sessions;this.hedera=hedera;this.keys=keys; }
     public List<ManagedUserResponse> list(String auth) { requireAdmin(auth); return users.findAll().stream().map(this::map).toList(); }
     @Transactional public ManagedUserResponse create(String auth, CreateManagedUserRequest request) {
         requireAdmin(auth); if (request == null || request.email()==null || !request.email().contains("@") || request.password()==null || request.password().length()<8) throw new IllegalArgumentException("Valid email and password of at least 8 characters are required");
@@ -39,7 +38,7 @@ public class AdminUserService {
         if (!"DISABLED".equals(user.role)) throw new IllegalArgumentException("Account is already active");
         user.role = normalizeRole(request == null ? null : request.role());
         AccountEntity account = accounts.findById(user.accountId).orElseThrow();
-        account.status = isMock(account) ? "MOCK" : "ACTIVE";
+        account.status = "ACTIVE";
         accounts.save(account); users.save(user); sessions.invalidateUser(user);
         return map(user);
     }
@@ -58,36 +57,9 @@ public class AdminUserService {
         AccountEntity account = accounts.findById(user.accountId).orElseThrow(); account.email = email;
         accounts.save(account); users.save(user); return map(user);
     }
-    @Transactional
-    public ManagedUserResponse provisionWallet(String auth, String id) {
-        requireAdmin(auth); UserEntity user = target(id);
-        if ("DISABLED".equals(user.role)) throw new IllegalArgumentException("Restore the account before provisioning its wallet");
-        AccountEntity account = accounts.findById(user.accountId).orElseThrow();
-        if (!isMock(account) || (account.encryptedPrivateKey != null && !account.encryptedPrivateKey.isBlank()))
-            throw new IllegalArgumentException("This account already has a real wallet or stored key; it cannot be replaced");
-        var wallet = hedera.createAccount("0");
-        if (wallet.mock() || wallet.accountId() == null || !wallet.accountId().matches("0\\.0\\.[0-9]+") || wallet.privateKey() == null)
-            throw new IllegalArgumentException("Real Hedera credentials are required; the mock wallet was not changed");
-        account.hederaAccountId = wallet.accountId(); account.encryptedPrivateKey = keys.encrypt(wallet.privateKey());
-        account.balance = BigDecimal.ZERO; account.status = wallet.status();
-        accounts.save(account); return map(user);
-    }
-    @Transactional
-    public void deleteMock(String auth, String id) {
-        UserEntity actor = requireAdmin(auth); UserEntity user = target(id);
-        if (actor.id.equals(id)) throw new IllegalArgumentException("You cannot delete yourself");
-        AccountEntity account = accounts.findById(user.accountId).orElseThrow();
-        if (!"DISABLED".equals(user.role)) throw new IllegalArgumentException("Close the account before deleting it");
-        if (!isMock(account) || (account.encryptedPrivateKey != null && !account.encryptedPrivateKey.isBlank()))
-            throw new IllegalArgumentException("Real wallets and stored keys cannot be deleted; use Close account");
-        sessions.invalidateUser(user); users.delete(user); accounts.delete(account);
-    }
     private UserEntity target(String id) {
         return users.findForUpdate(id).orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
             org.springframework.http.HttpStatus.NOT_FOUND, "User not found"));
-    }
-    private static boolean isMock(AccountEntity account) {
-        return account.hederaAccountId != null && (account.hederaAccountId.equals("0.0.mock") || account.hederaAccountId.startsWith("0.0.demo-"));
     }
     private ManagedUserResponse map(UserEntity user){ AccountEntity a=accounts.findById(user.accountId).orElseThrow(); return new ManagedUserResponse(user.id,user.email,user.displayName,user.role,a.id,a.hederaAccountId); }
     private static String normalizeRole(String role){ if(role==null) throw new IllegalArgumentException("Role is required"); String r=role.trim().toUpperCase(); if(!List.of("USER","ADMIN","AUDITOR","PLATFORM").contains(r)) throw new IllegalArgumentException("Unsupported role"); return r; }

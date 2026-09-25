@@ -68,7 +68,7 @@ class EnvelopeLedgerTest {
   void a_denied_spend_debits_nothing() {
     long before = ledger.state().balances().get(Envelope.RENT);
 
-    approvals.submit(new PolicyRequest(Envelope.RENT, 999999, "landlord-tunis"), ledger.state());
+    approvals.submit(new PolicyRequest(Envelope.RENT, before + 1, "landlord-tunis"), ledger.state());
 
     assertThat(ledger.state().balances().get(Envelope.RENT)).isEqualTo(before);
   }
@@ -82,7 +82,7 @@ class EnvelopeLedgerTest {
         approvals.submit(new PolicyRequest(Envelope.RENT, rent - 50, "landlord-tunis"), ledger.state());
 
     assertThat(second.decision().verdict())
-        .as("affordable against the original 500, unaffordable against what is left")
+        .as("affordable against the opening runway, unaffordable against what is left")
         .isEqualTo(Verdict.DENY);
     assertThat(second.decision().ruleId()).isEqualTo("funds.insufficient");
   }

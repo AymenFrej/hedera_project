@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { answerApproval, listApprovals, type ApprovalRequest } from '../api/client'
+import { hbar } from '../lib/units'
 
 export default function ApprovalsPage() {
   const [items, setItems] = useState<ApprovalRequest[]>([])
@@ -18,7 +19,7 @@ export default function ApprovalsPage() {
   }
   useEffect(() => { void load() }, [])
   async function answer(item: ApprovalRequest, verdict: 'approve' | 'reject') {
-    if (!window.confirm(`${verdict === 'approve' ? 'Approve' : 'Reject'} ${item.amount} for ${item.counterparty}? Approval debits the shared demo budget, not a Hedera wallet.`)) return
+    if (!window.confirm(`${verdict === 'approve' ? 'Approve' : 'Reject'} ${item.amount == null ? '—' : `${hbar(item.amount)} ℏ`} for ${item.counterparty}? Approval debits the shared demo budget, not a Hedera wallet.`)) return
     setBusy(true); setError(null)
     try {
       const updated = await answerApproval(item.id, verdict)
@@ -38,7 +39,7 @@ export default function ApprovalsPage() {
       {selected && <button className="button secondary" onClick={() => setParams({})}>Show all requests</button>}<span>{visible.length} requests</span></div>
     <section className="data-panel" aria-busy={loading || busy}>
       {loading ? <p className="feature-note" role="status">Loading approvals…</p> : visible.length ? visible.map(item => <article className="approval-item" key={item.id}>
-        <div><h2>{item.amount ?? '—'} to {item.counterparty ?? 'Unknown recipient'}</h2><span className="status-badge">{item.status}</span></div>
+        <div><h2>{item.amount == null ? '—' : `${hbar(item.amount)} ℏ`} to {item.counterparty ?? 'Unknown recipient'}</h2><span className="status-badge">{item.status}</span></div>
         <p>{item.reason}</p><p>Envelope: {item.envelope ?? '—'} · Rule: <code>{item.ruleId}</code></p>
         <p className="audit-meta">Request: {item.id}<br/>Requested: {item.requestedAt ? new Date(item.requestedAt).toLocaleString() : 'Unknown'}</p>
         {item.decidedAt && <p>Decided {new Date(item.decidedAt).toLocaleString()} by {item.decidedBy ?? 'Unknown actor'}</p>}

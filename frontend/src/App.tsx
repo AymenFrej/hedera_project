@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import AppShell from './layout/AppShell'
 import FeaturePage from './pages/FeaturePage'
+import TokensPage from './pages/TokensPage'
 import PoliciesPage from './pages/PoliciesPage'
 import ApprovalsPage from './pages/ApprovalsPage'
 import AuditPage from './pages/AuditPage'
@@ -11,6 +12,7 @@ import SettingsPage from './pages/SettingsPage'
 import AdminUsersPage from './pages/AdminUsersPage'
 import AccountsPage from './pages/AccountsPage'
 import AssistantPage from './pages/AssistantPage'
+import PaymentsPage from './pages/PaymentsPage'
 import { apiRequest, clearAuthToken, getAuthToken, getAuthUser, setAuthToken } from './api/client'
 import { canAccess } from './access'
 function Protected() {
@@ -43,6 +45,8 @@ export default function App() {
       <Route path="/assistant" element={<AssistantPage/>}/>
       <Route path="/payments" element={<FeaturePage kind="payments"/>}/>
       <Route path="/tokens" element={<FeaturePage kind="tokens"/>}/>
+      <Route path="/payments" element={<PaymentsPage/>}/>
+      <Route path="/tokens" element={<TokensPage/>}/>
       <Route path="/audit" element={<AuditPage/>}/>
       <Route path="/policies" element={<PoliciesPage/>}/>
       <Route path="/approvals" element={<ApprovalsPage/>}/>

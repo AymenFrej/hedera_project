@@ -85,13 +85,15 @@ TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
   | sed -E 's/.*"token":"([^"]+)".*/\1/')
 AUTH="Authorization: Bearer $TOKEN"
 
+# Amounts here are tinybars, the unit the engine decides in (1 ℏ = 100,000,000). The screens
+# convert what you type; curl does not, so 100 ℏ is written out in full.
 curl -s -X POST $API/demo/reset -H "$AUTH"
 curl -s -X POST $API/decide -H "$AUTH" -H 'Content-Type: application/json' \
-  -d '{"envelope":"RENT","amount":100,"counterparty":"landlord-tunis"}'
+  -d '{"envelope":"RENT","amount":10000000000,"counterparty":"landlord-tunis"}'
 curl -s -X POST $API/decide -H "$AUTH" -H 'Content-Type: application/json' \
-  -d '{"envelope":"RENT","amount":9999,"counterparty":"landlord-tunis"}'
+  -d '{"envelope":"RENT","amount":999900000000,"counterparty":"landlord-tunis"}'
 curl -s -X POST $API/decide -H "$AUTH" -H 'Content-Type: application/json' \
-  -d '{"envelope":"EMERGENCY","amount":50,"counterparty":"landlord-tunis"}'
+  -d '{"envelope":"EMERGENCY","amount":5000000000,"counterparty":"landlord-tunis"}'
 # take approvalId from that last answer
 curl -s -X POST $API/approvals/<approvalId>/approve -H "$AUTH"
 curl -s $API/state -H "$AUTH"
@@ -102,7 +104,7 @@ Step 3 answers with:
 ```json
 {"verdict":"HOLD","ruleId":"emergency.human",
  "reason":"emergency funds always require human approval",
- "balanceAfter":150,"approvalId":"approval_...","auditEventId":"audit_...","anchored":false}
+ "balanceAfter":15000000000,"approvalId":"approval_...","auditEventId":"audit_...","anchored":false}
 ```
 
 `GET /api/v1/policies` lists all nine rules with their verdicts, so a judge can read the policy

@@ -14,6 +14,9 @@ class HederaClientConfigTest {
      */
     private static final String HEX =
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+      private static final String ED25519_DER =
+        "302e020100300506032b657004220420"
+          + "0000000000000000000000000000000000000000000000000000000000000000";
 
   private static HederaProperties properties(String key) {
     HederaProperties p = new HederaProperties();
@@ -26,6 +29,16 @@ class HederaClientConfigTest {
   void accepts_the_hex_form_shown_by_the_portal() {
     PrivateKey parsed = HederaClientConfig.parsePrivateKey(properties(HEX));
     assertThat(parsed).isNotNull();
+  }
+
+  @Test
+  void accepts_ed25519_pkcs8_der_hex() {
+    HederaProperties properties = properties(ED25519_DER);
+    properties.setKeyType("ED25519");
+
+    PrivateKey parsed = HederaClientConfig.parsePrivateKey(properties);
+
+    assertThat(parsed.isED25519()).isTrue();
   }
 
   @Test

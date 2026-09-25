@@ -82,6 +82,13 @@ public final class PolicyEngine {
           request,
           null);
     }
+    // Envelopes are a budget in HBAR. A token has its own supply and its own decimals, so its
+    // units are not comparable to tinybars and must not be subtracted from one. The counterparty
+    // rules below still apply: who you pay is a question the asset does not answer.
+    if (!request.spendsEnvelope()) {
+      return decideWithoutEnvelope(request, state);
+    }
+
     Long balance = state.balances().get(envelope);
     if (balance == null) {
       return new PolicyDecision(
@@ -133,6 +140,37 @@ public final class PolicyEngine {
         "within " + name(envelope) + " envelope and under limits",
         request,
         balanceAfter);
+  }
+
+  /**
+   * A spend in an asset the envelopes are not denominated in. Nothing is charged and no balance is
+   * quoted, because an HBAR balance says nothing about how much of a token exists. What survives is
+   * the judgement that does not depend on the unit: emergency money needs a human, and so does a
+   * first transfer to an account never paid before.
+   */
+  private static PolicyDecision decideWithoutEnvelope(PolicyRequest request, PolicyState state) {
+    if (request.envelope() == Envelope.EMERGENCY) {
+      return new PolicyDecision(
+          Verdict.HOLD,
+          "emergency.human",
+          "emergency funds always require human approval",
+          request,
+          null);
+    }
+    if (!state.knownCounterparties().contains(request.counterparty())) {
+      return new PolicyDecision(
+          Verdict.HOLD,
+          "counterparty.unknown",
+          "first transfer to " + request.counterparty(),
+          request,
+          null);
+    }
+    return new PolicyDecision(
+        Verdict.ALLOW,
+        "policy.ok",
+        "allowed: " + request.asset() + " is not counted against an envelope",
+        request,
+        null);
   }
 
   private static String name(Envelope envelope) {

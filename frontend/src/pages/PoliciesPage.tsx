@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { decideSpend, getPolicyRules, getPolicyState, resetDemo, type DecideResponse, type PolicyRule, type PolicyStateResponse } from '../api/client'
+import { hbar, toTinybars } from '../lib/units'
 
 export default function PoliciesPage() {
   const [state, setState] = useState<PolicyStateResponse | null>(null)
@@ -24,12 +25,12 @@ export default function PoliciesPage() {
   useEffect(() => { void refresh() }, [])
 
   async function decide() {
-    if (!Number.isSafeInteger(Number(amount)) || Number(amount) <= 0 || !counterparty.trim()) {
-      setError('Enter a positive whole-number amount and a counterparty.'); return
+    if (!Number.isFinite(Number(amount)) || Number(amount) <= 0 || !counterparty.trim()) {
+      setError('Enter a positive amount in ℏ and a counterparty.'); return
     }
     setBusy(true); setError(null); setDecision(null)
     try {
-      const answer = await decideSpend({ envelope, amount: Number(amount), counterparty: counterparty.trim() })
+      const answer = await decideSpend({ envelope, amount: toTinybars(amount), counterparty: counterparty.trim() })
       setDecision(answer)
       setState(current => current ? { ...current, envelopes: answer.envelopes } : current)
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not evaluate request') }
@@ -49,11 +50,11 @@ export default function PoliciesPage() {
     </div><button className="button secondary" disabled={busy || loading} onClick={() => void refresh()}>Refresh</button></div>
     {error && <div className="audit-banner danger" role="alert">{error}</div>}
     {loading && <p role="status">Loading policy state and rulebook…</p>}
-    <div className="envelope-grid">{state && Object.entries(state.envelopes).map(([name, balance]) => <div className="envelope-card" key={name}><span>{name}</span><strong>{balance}</strong><span>Remaining demo budget</span></div>)}</div>
+    <div className="envelope-grid">{state && Object.entries(state.envelopes).map(([name, balance]) => <div className="envelope-card" key={name}><span>{name}</span><strong>{hbar(balance)} ℏ</strong><span>Remaining demo budget</span></div>)}</div>
     <section className="data-panel">
       <form className="decide-form" onSubmit={e => { e.preventDefault(); void decide() }}>
         <label>Envelope<select value={envelope} onChange={e => setEnvelope(e.target.value)}>{['RENT','ESSENTIALS','EMERGENCY'].map(name => <option key={name}>{name}</option>)}</select></label>
-        <label>Amount<input type="number" required min="1" step="1" value={amount} onChange={e => setAmount(e.target.value)}/></label>
+        <label>Amount (ℏ)<input type="number" required min="0" step="any" value={amount} onChange={e => setAmount(e.target.value)}/></label>
         <label>Counterparty<input required value={counterparty} onChange={e => setCounterparty(e.target.value)}/></label>
         <button className="button primary" disabled={disabled}>{busy ? 'Working…' : 'Evaluate request'}</button>
         <button type="button" className="button secondary" disabled={disabled} onClick={() => void reset()}>Reset shared demo</button>
@@ -61,7 +62,7 @@ export default function PoliciesPage() {
       {state && <p className="feature-note">Known counterparties: {state.knownCounterparties.join(', ') || 'None'}</p>}
       {decision && <div className={`verdict-card ${decision.verdict === 'ALLOW' ? 'ok' : decision.verdict === 'HOLD' ? 'warn' : 'danger'}`} role="status">
         <h2>{{ ALLOW: 'ALLOWED', HOLD: 'HELD FOR A HUMAN', DENY: 'DENIED' }[decision.verdict]}</h2><code>{decision.ruleId}</code><p>{decision.reason}</p>
-        {decision.balanceAfter !== null && <p>Remaining demo budget: {decision.balanceAfter}</p>}
+        {decision.balanceAfter !== null && <p>Remaining demo budget: {hbar(decision.balanceAfter)} ℏ</p>}
         {decision.approvalId && <p><Link to={`/approvals?request=${encodeURIComponent(decision.approvalId)}`}>Review approval request</Link></p>}
         {decision.auditEventId && <p><Link to={`/audit?event=${encodeURIComponent(decision.auditEventId)}`}>View audit event</Link> — {decision.anchored ? 'Anchored on Hedera' : 'Not yet anchored'}</p>}
       </div>}
