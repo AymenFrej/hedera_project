@@ -2,6 +2,8 @@ server:
   port: ${BACKEND_PORT:8080}
 
 spring:
+  config:
+    import: optional:file:./.env[.properties],optional:file:./backend/.env[.properties]
   application:
     name: hedera-agent-platform
   datasource:
@@ -14,6 +16,21 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+
+openrouter:
+  base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
+  model: ${OPENROUTER_MODEL:openrouter/free}
+  embedding-model: ${OPENROUTER_EMBEDDING_MODEL:nvidia/nemotron-3-embed-1b:free}
+
+assistant:
+  rag:
+    chunk-size: ${RAG_CHUNK_SIZE:700}
+    chunk-overlap: ${RAG_CHUNK_OVERLAP:100}
+    top-k: ${RAG_TOP_K:5}
+    minimum-score: ${RAG_MINIMUM_SCORE:0.20}
+    document-timeout-ms: ${RAG_DOCUMENT_TIMEOUT_MS:15000}
+    document-cache-path: ${RAG_DOCUMENT_CACHE_PATH:data/hedera-documents}
+    index-path: ${RAG_INDEX_PATH:data/hedera-rag-index.json}
 
 hedera:
   network: ${HEDERA_NETWORK:testnet}

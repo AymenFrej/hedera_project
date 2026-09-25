@@ -20,6 +20,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> { return request<T>(path, init) }
+export type AssistantChatSource = { title: string; url: string }
+export type AssistantChatResponse = { message: string; sources?: AssistantChatSource[] }
+export async function sendAssistantMessage(message: string): Promise<AssistantChatResponse> {
+  return request<AssistantChatResponse>('/assistant/chat', { method: 'POST', body: JSON.stringify({ message }) })
+}
 export function getAuthToken(): string | null { return localStorage.getItem('hedera.auth.token') }
 export function setAuthToken(token: string, user?: unknown): void { localStorage.setItem('hedera.auth.token', token); if (user) localStorage.setItem('hedera.auth.user', JSON.stringify(user)) }
 export function clearAuthToken(): void { localStorage.removeItem('hedera.auth.token'); localStorage.removeItem('hedera.auth.user') }

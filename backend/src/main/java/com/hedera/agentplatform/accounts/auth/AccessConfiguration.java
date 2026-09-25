@@ -27,6 +27,7 @@ public class AccessConfiguration implements WebMvcConfigurer {
                     path.equals("/api/v1/accounts") || path.equals("/api/v1/accounts/me") ||
                     (path.startsWith("/api/v1/admin/") && manager) ||
                     (path.startsWith("/api/v1/audit") && (manager || (role.equals("AUDITOR") && method.equals("GET")))) ||
+                    (path.startsWith("/api/v1/assistant/") && (role.equals("USER") || role.equals("AUDITOR") || manager)) ||
                     ((path.startsWith("/api/v1/payments") || path.startsWith("/api/v1/tokens")) && (role.equals("USER") || role.equals("ADMIN"))) ||
                     ((path.startsWith("/api/v1/policies") || path.startsWith("/api/v1/approvals")) && manager);
                 if (!allowed) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Your role cannot use this feature");

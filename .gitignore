@@ -2,6 +2,7 @@
 .env.*
 !.env.example
 backend/target/
+backend/data/
 .tools/
 .pr8-live/
 .review-main/
